@@ -26,7 +26,7 @@ class Softphone():
     def __init__(self, ip_correspondant:str):
         # Déclaration des attributs
         self.__socket_correspondant:tuple[str, int]
-        self.__socket_local:socket
+        self.__socket_emetteur:socket
         self.__fin: bool = False
         
         # Declaration des attributs audio
@@ -38,8 +38,8 @@ class Softphone():
         self.__socket_correspondant = (ip_correspondant, Softphone.PORT_ENTREE)
         
         # initialisation des attributs réseau locaux
-        self.__socket_local = socket(AF_INET, SOCK_DGRAM)
-        self.__socket_local.bind(("", Softphone.PORT_SORTIE))
+        self.__socket_emetteur = socket(AF_INET, SOCK_DGRAM)
+        self.__socket_emetteur.bind(("", Softphone.PORT_SORTIE))
         print(f"Le serveur UDP a démarré sur le port {Softphone.PORT_SORTIE}.")
         
         # initialisation des attributs audio
@@ -54,14 +54,14 @@ class Softphone():
         try:
             while not self.__fin:
                 data = self.__stream_entree.read(2*Softphone.NB_ECHANTILLONS) # lecture des echantillons simultanes
-                self.__socket_local.sendto(data, self.__socket_correspondant)
+                self.__socket_emetteur.sendto(data, self.__socket_correspondant)
                 
         except KeyboardInterrupt:
             pass
         
         finally: # fermeture de la communication
             self.__audio.close(self.__stream_entree)
-            self.__socket_local.close()
+            self.__socket_emetteur.close()
             # self.__stream_entree.stop_stream()
             # self.__stream_entree.close()
             print ("Fin de la communication.")
