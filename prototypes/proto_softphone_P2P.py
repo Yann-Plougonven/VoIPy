@@ -1,9 +1,10 @@
-# Prototype softphone Peer to Peer
-# Programme sans IHM assurant la transmission et la réception de la communication
+# Prototype d'un softphone Peer to Peer émetteur/récepteur sans IHM
+# Écrit par Tugdual Thepaut et Yann Plougonven--Lastennet
+# Projet de S3 de BUT R&T à l'IUT de Lannion - Décembre 2024
+# https://github.com/Yann-Plougonven/VoIPy pour la version finale "client/serveur"
 
 from pyaudio import *
 from socket import *
-from threading import Thread
 
 class Softphone():
     # Déclaration des variables statiques
