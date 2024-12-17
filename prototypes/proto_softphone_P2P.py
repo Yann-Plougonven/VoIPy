@@ -84,7 +84,7 @@ class Softphone():
 
 if __name__ == "__main__":
     ### RENSEIGNER L'IP DU CORRESPONDANT ICI ###
-    ip_correspondant = "192.168.11.30"     ### <-----
+    ip_correspondant = "192.168.11.134"     ### <-----
     ### RENSEIGNER L'IP DU CORRESPONDANT ICI ###
     
     softphone:Softphone = Softphone(ip_correspondant) 
