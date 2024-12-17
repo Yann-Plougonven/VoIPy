@@ -27,4 +27,4 @@ class IHM_Appel(Toplevel):
     def __init__(self)-> None:
         Toplevel.__init__(self)
         self.ihm_contacts: IHM_Appel
-        
+        self.geometry("300x600")
