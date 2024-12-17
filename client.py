@@ -5,3 +5,26 @@
 
 from pyaudio import *
 from socket import *
+from tkinter import *
+
+class IMH_Connexion(Tk):
+    def __init__(self)-> None:
+        Tk.__init__(self)
+        
+        # déclaration des attributs
+        
+        
+        # instanciation des attributs
+        
+        
+
+class IHM_Contacts(Toplevel):
+    def __init__(self)-> None:
+        Toplevel.__init__(self)
+        self.ihm_connexion: IMH_Connexion
+
+class IHM_Appel(Toplevel):
+    def __init__(self)-> None:
+        Toplevel.__init__(self)
+        self.ihm_contacts: IHM_Appel
+        
