@@ -17,9 +17,9 @@ class Softphone():
     
     # Initialisation des variables statiques
     FORMAT = paInt16
-    CHANNELS = 2
-    FREQUENCE = 8000
-    NB_ECHANTILLONS = 256
+    CHANNELS = 1
+    FREQUENCE = 44100
+    NB_ECHANTILLONS = 1024
     PORT_SORTIE = 5000
     PORT_ENTREE = 5001
     
@@ -84,7 +84,7 @@ class Softphone():
 
 if __name__ == "__main__":
     ### RENSEIGNER L'IP DU CORRESPONDANT ICI ###
-    ip_correspondant = "192.168.182.161"     ### <-----
+    ip_correspondant = "192.168.11.134"     ### <-----
     ### RENSEIGNER L'IP DU CORRESPONDANT ICI ###
     
     softphone:Softphone = Softphone(ip_correspondant) 
