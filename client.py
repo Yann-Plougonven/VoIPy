@@ -7,9 +7,6 @@ from pyaudio import *
 from socket import *
 from tkinter import *
 
-LARGEUR_FEN:int = 375
-HAUTEUR_FEN:int = 700
-
 class IHM_Connexion(Tk):
     def __init__(self)-> None:
         Tk.__init__(self)
@@ -73,5 +70,8 @@ class IHM_Appel(Toplevel):
         self.ihm_contacts: IHM_Appel
         
 if __name__ == "__main__":
+    LARGEUR_FEN:int = 375
+    HAUTEUR_FEN:int = 700
+    
     ihm: IHM_Connexion
     ihm = IHM_Connexion()
