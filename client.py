@@ -31,28 +31,32 @@ class IHM_Connexion(Tk):
         self.title("Connexion au serveur")
         self.geometry(f"{LARGEUR_FEN}x{HAUTEUR_FEN}")
         
-        self.__frame_auth = Frame(borderwidth= 10, relief= "groove", padx = 10, pady = 10)
+        # Titre principal
+        self.__label_titre = Label(self, text="VoIPy", font=("Helvetica", 24, "bold"))
+        self.__label_titre.pack(pady=20)
+        
+        self.__frame_auth = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
         self.__entry_id = Entry(self.__frame_auth, width=50)
         self.__label_id = Label(self.__frame_auth, text="Identifiant")
-        self.__entry_mdp = Entry(self.__frame_auth, width=50)
+        self.__entry_mdp = Entry(self.__frame_auth, width=50, show="*")
         self.__label_mdp = Label(self.__frame_auth, text="Mot de passe")
         
-        self.__frame_serv = Frame(borderwidth= 10, relief= "groove", padx = 10, pady = 10)
+        self.__frame_serv = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
         self.__entry_ip_serv = Entry(self.__frame_serv, width=50)
         self.__label_ip_serv = Label(self.__frame_serv, text="IP du serveur VoIP")
         self.__btn_connexion = Button(self.__frame_serv, text="Connexion")
         
         # ajout des widgets
-        self.__frame_auth.pack(side=TOP)
-        self.__entry_id.grid(row=1)
-        self.__label_id.grid(row=0)
-        self.__entry_mdp.grid(row=3)
-        self.__label_mdp.grid(row=2)
+        self.__frame_auth.pack(pady=20)
+        self.__label_id.grid(row=0, column=0, pady=5)
+        self.__entry_id.grid(row=1, column=0, pady=5)
+        self.__label_mdp.grid(row=2, column=0, pady=5)
+        self.__entry_mdp.grid(row=3, column=0, pady=5)
         
-        self.__frame_serv.pack(side=BOTTOM)
-        self.__entry_ip_serv.grid(row=1)
-        self.__label_ip_serv.grid(row=0)
-        self.__btn_connexion.grid(row=2)
+        self.__frame_serv.pack(pady=20)
+        self.__label_ip_serv.grid(row=0, column=0, pady=5)
+        self.__entry_ip_serv.grid(row=1, column=0, pady=5)
+        self.__btn_connexion.grid(row=2, column=0, pady=20)
         
         # lancer l'IHM
         self.mainloop()
