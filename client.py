@@ -47,6 +47,7 @@ class IHM_Authentification(Tk):
         self.__frame_serv = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
         self.__label_ip_client = Label(self.__frame_serv, text=f"Votre IP client : {gethostbyname(gethostname())}")
         self.__entry_ip_serv = Entry(self.__frame_serv, width=50)
+        self.__entry_ip_serv.insert(0, "192.168.1.159") # valeur par défaut
         self.__label_ip_serv = Label(self.__frame_serv, text="IP du serveur VoIP")
         self.__btn_auth = Button(self.__frame_serv, text="Authentification", command=self.authentification)
         
@@ -109,7 +110,7 @@ class Client:
         reponse_serv: str
         
         print("Tentative d'authentification du client auprès du serveur.")
-        self.envoyer_message(f"AUTH REQUEST {self.__login} {self.__mdp}")
+        self.envoyer_message(f"AUTH REQUEST {self.__login}:{self.__mdp}")
         
         print("En attente de la réponse du serveur...")
         reponse_serv = self.recevoir_message()
