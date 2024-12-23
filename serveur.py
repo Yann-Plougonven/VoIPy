@@ -52,7 +52,7 @@ class Service_Signalisation:
         if msg.startswith("AUTH REQUEST"):
             self.authentifier(ip_client, msg)
             
-        if msg.startswith("DISCONNECTION REQUEST"):
+        if msg.startswith("LOGOUT REQUEST"):
             self.deconnecter(ip_client, msg)
         
         elif msg.startswith("CALL REQUEST"):
