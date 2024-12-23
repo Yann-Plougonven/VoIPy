@@ -6,6 +6,7 @@
 from pyaudio import *
 from socket import *
 from tkinter import *
+from tkinter import ttk # TODO à supprimer quand on aura retiré la liste déroulante de contacts
 
 class IHM_Authentification(Tk):
     # Utilisation du protocole UDP : on n'établit pas de connexion avec le serveur,
@@ -45,11 +46,11 @@ class IHM_Authentification(Tk):
         
         # Frame de choix du serveur
         self.__frame_serv = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
-        self.__label_ip_client = Label(self.__frame_serv, text=f"Votre IP client : {gethostbyname(gethostname())}")
+        self.__label_ip_client = Label(self.__frame_serv, text=f"Votre IP client : {gethostbyname(gethostname())}") # affiche l'IP du client
         self.__entry_ip_serv = Entry(self.__frame_serv, width=50)
         self.__entry_ip_serv.insert(0, "192.168.1.159") # valeur par défaut
         self.__label_ip_serv = Label(self.__frame_serv, text="IP du serveur VoIP")
-        self.__btn_auth = Button(self.__frame_serv, text="Authentification", command=self.authentification)
+        self.__btn_auth = Button(self.__frame_serv, text="Authentification", command=self.authentification) # lance l'authentification
         
         # Ajout des widgets
         self.__frame_auth.pack(pady=20)
@@ -64,11 +65,18 @@ class IHM_Authentification(Tk):
         self.__entry_ip_serv.grid(row=2, column=0, pady=5)
         self.__btn_auth.grid(row=3, column=0, pady=20)
         
+        # intercepte la fermeture de la fenêtre et appellera la méthode quit TODO
+        # self.protocol("WM_DELETE_WINDOW", self.quit)
+        
         # lancer l'IHM
         self.mainloop()
         
     def authentification(self)-> None:
-        self.__client = Client(self.__entry_login.get(), self.__entry_mdp.get(), self.__entry_ip_serv.get()) 
+        self.__client = Client(self.__entry_login.get(), self.__entry_mdp.get(), self.__entry_ip_serv.get())
+        self.destroy() # détruire la fenêtre d'authentification
+        
+    # def quit(self)-> None: # TODO
+    #     self.destroy()
 
 
 class IHM_Contacts(Toplevel):
@@ -77,10 +85,58 @@ class IHM_Contacts(Toplevel):
         self.ihm_connexion: IHM_Authentification
 
 
-class IHM_Appel(Toplevel):
-    def __init__(self)-> None:
-        Toplevel.__init__(self)
-        self.ihm_contacts: IHM_Appel
+# TODO INTEGRATION EXPERIMENTALE DE L'INTERFACE TELEPHONE, IL FAUT AJOUTER UNE INTERFACE CONTACTS
+class IHM_Appel(Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Interface Téléphone")
+        self.geometry("300x600")  # Taille pour simuler un écran de téléphone
+        self.configure(bg="white")  # Fond blanc
+
+        # État de l'appel
+        self.etat_appel = Label(self, text="État de l'appel : Ça sonne", font=("Arial", 12), bg="white")
+        self.etat_appel.pack(pady=10)
+
+        # Nom du correspondant
+        self.nom_correspondant = Label(self, text="Nom du correspondant : John Doe", font=("Arial", 12), bg="white")
+        self.nom_correspondant.pack(pady=10)
+
+        # Liste déroulante pour l'annuaire de contacts
+        self.label_liste = Label(self, text="Annuaire de contacts :", font=("Arial", 10), bg="white")
+        self.label_liste.pack()
+        self.liste_contacts = ttk.Combobox(self, values=["John Doe", "Alice", "Bob", "Eve"], font=("Arial", 10)) # TODO a supprimer une fois le nouveau menu réalisé
+        self.liste_contacts.set("Sélectionner un contact")
+        self.liste_contacts.pack(pady=5)
+
+        # Partie interactive
+        cadre_interactif = Frame(self, bg="lightgrey", bd=2, relief="ridge")
+        cadre_interactif.pack(pady=20, padx=10, fill="both", expand=True)
+
+        # Boutons interactifs (Couper micro, Haut-parleur)
+        self.bouton_micro = Button(
+            cadre_interactif, text=" Couper Micro", font=("Arial", 12), command=self.couper_micro
+        )
+        self.bouton_micro.pack(pady=10)
+
+        self.bouton_hp = Button(
+            cadre_interactif, text=" Haut-parleur", font=("Arial", 12), command=self.activer_hp
+        )
+        self.bouton_hp.pack(pady=10)
+
+        # Bouton d'appel/raccrocher
+        self.bouton_appel = Button(
+            cadre_interactif, text=" Appel/Raccrocher", font=("Arial", 12), bg="lightgreen", command=self.appel
+        )
+        self.bouton_appel.pack(pady=20)
+
+    def couper_micro(self):
+        print("Micro coupé!")
+
+    def activer_hp(self):
+        print("Haut-parleur activé!")
+
+    def appel(self):
+        print("Appel lancé ou raccroché!")
 
 
 class Client:
@@ -90,6 +146,7 @@ class Client:
         self.__login: str
         self.__mdp: str
         self.__ip_serv: str
+        self.__ihm_appel: IHM_Appel
         
         # Déclaration des sockets
         self.__socket_envoi: socket
@@ -122,7 +179,7 @@ class Client:
         
         if reponse_serv.startswith("AUTH ACCEPT"):
             print("Authentification réussie.")
-            # TODO ouvrir l'interface suivante
+            self.__ihm_appel = IHM_Appel()
             
         else:
             print("L'authentification a échouée : ", reponse_serv)
