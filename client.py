@@ -14,7 +14,6 @@ class IHM_Authentification(Tk):
         Tk.__init__(self)
         
         # déclaration des attributs
-        self.__client: Client
         self.__ip_client: str
         
         self.__frame_auth: Frame
@@ -32,7 +31,6 @@ class IHM_Authentification(Tk):
         # Instanciation des attributs
         self.title("Authentification auprès du serveur")
         self.geometry(f"{LARGEUR_FEN}x{HAUTEUR_FEN}")
-        self.__ip_client = gethostbyname(gethostname())
         
         # Titre principal
         self.__label_titre = Label(self, text="VoIPy", font=("Helvetica", 24, "bold"))
@@ -47,7 +45,7 @@ class IHM_Authentification(Tk):
         
         # Frame de choix du serveur
         self.__frame_serv = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
-        self.__label_ip_client = Label(self.__frame_serv, text=f"Votre IP client : {self.__ip_client}")
+        self.__label_ip_client = Label(self.__frame_serv, text=f"Votre IP client : {gethostbyname(gethostname())}")
         self.__entry_ip_serv = Entry(self.__frame_serv, width=50)
         self.__label_ip_serv = Label(self.__frame_serv, text="IP du serveur VoIP")
         self.__btn_auth = Button(self.__frame_serv, text="Authentification", command=self.authentification)
@@ -69,7 +67,7 @@ class IHM_Authentification(Tk):
         self.mainloop()
         
     def authentification(self):
-        self.__client = Client(self.__entry_login.get(), self.__entry_mdp.get(), self.__entry_ip_serv.get(), self.__ip_client) 
+        self.__client = Client(self.__entry_login.get(), self.__entry_mdp.get(), self.__entry_ip_serv.get()) 
 
 
 class IHM_Contacts(Toplevel):
@@ -85,13 +83,12 @@ class IHM_Appel(Toplevel):
 
 
 class Client:
-    def __init__(self, login:str, mdp:str, ip_serv:str, ip_client:str)-> None:
+    def __init__(self, login:str, mdp:str, ip_serv:str)-> None:
         
         # Déclaration des attributs       
         self.__login: str
         self.__mdp: str
         self.__ip_serv: str
-        self.__ip_client:str
         
         # Déclaration des sockets
         self.__socket_envoi_msg: socket
@@ -100,7 +97,6 @@ class Client:
         self.__login = login
         self.__mdp = mdp
         self.__ip_serv = ip_serv
-        self.__ip_client = ip_client
         
         # Création du socket d'envoi de messages
         self.__socket_envoi = socket(AF_INET, SOCK_DGRAM)
@@ -113,7 +109,7 @@ class Client:
         reponse_serv: str
         
         print("Tentative d'authentification du client auprès du serveur.")
-        self.envoyer_message(f"AUTH REQUEST {self.__ip_client} {self.__login} {self.__mdp}")
+        self.envoyer_message(f"AUTH REQUEST {self.__login} {self.__mdp}")
         
         print("En attente de la réponse du serveur...")
         reponse_serv = self.recevoir_message()
@@ -130,6 +126,7 @@ class Client:
         self.__socket_envoi.sendto(tab_octets, (self.__ip_serv, 6100))
         
     def recevoir_message(self)-> str:
+        # TODO actuellement on recoit l'UDP sur le port d'émission 5000, à changer en 5101
         tab_octets = self.__socket_envoi.recv(255)
         msg = tab_octets.decode(encoding="utf-8")
         return msg
