@@ -122,7 +122,7 @@ class Client:
         
         if reponse_serv.startswith("AUTH ACCEPT"):
             print("Authentification réussie.")
-            # TODO ouvrir le port d'écoute 5101
+            # TODO ouvrir l'interface suivante
             
         else:
             print("L'authentification a échouée : ", reponse_serv)
@@ -132,7 +132,6 @@ class Client:
         self.__socket_envoi.sendto(tab_octets, (self.__ip_serv, 6100))
         
     def recevoir_message(self)-> str:
-        # TODO actuellement on recoit l'UDP sur le port d'émission 5000, à changer en 5101
         tab_octets = self.__socket_reception.recv(255)
         msg = tab_octets.decode(encoding="utf-8")
         return msg
