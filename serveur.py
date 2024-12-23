@@ -5,7 +5,7 @@
 
 from pyaudio import *
 from socket import *
-import datetime
+from datetime import datetime
 
 class Service_Signalisation:
     def __init__(self) -> None:
@@ -41,7 +41,7 @@ class Service_Signalisation:
             
             # Enregistrement des coordonnées du client
             ip_client, port_client = addr
-            print(f"[{self.heure()}] Message reçu de {ip_client}:{port_client} : {msg}")
+            print(f"[{self.heure()}] [FROM {ip_client}:{port_client}] {msg}")
             
             # Traitement du message
             self.traiter_signalisation(ip_client, msg)
@@ -75,12 +75,12 @@ class Service_Signalisation:
         self.__socket_emission.sendto(tab_octets, (ip_client, 5000)) # remplacer par 5101
         
     def heure(self)-> str:
-        return datetime.now().strftime("%H:%M:%S")
+        return datetime.now().strftime("%m/%d/%y %H:%M:%S")
                 
     def authentifier(self, ip_client:str, msg: str)-> None:
         
         if True: # TODO consulter la BDD pour vérifier que l'utilisateur est bien enregistré
-            print(f"[{self.heure()}] Authentification réussie pour {ip_client}.") # TODO pseudo de l'utilisateur
+            print(f"[{self.heure()}] [Serveur] Authentification réussie pour {ip_client}.") # TODO pseudo de l'utilisateur
             self.envoyer_signalisation(ip_client, "AUTH ACCEPT")
             # TODO mettre à jour la BDD avec l'adresse IP du client
             # Ajouter le client à la liste des clients actuellement authentifiés
