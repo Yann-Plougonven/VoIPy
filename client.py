@@ -66,7 +66,7 @@ class IHM_Authentification(Tk):
         # lancer l'IHM
         self.mainloop()
         
-    def authentification(self):
+    def authentification(self)-> None:
         self.__client = Client(self.__entry_login.get(), self.__entry_mdp.get(), self.__entry_ip_serv.get()) 
 
 
@@ -105,7 +105,7 @@ class Client:
         # Tentative d'authentification auprès du serveur
         self.authentification()
     
-    def authentification(self):
+    def authentification(self)-> None:
         reponse_serv: str
         
         print("Tentative d'authentification du client auprès du serveur.")
@@ -121,7 +121,7 @@ class Client:
         else:
             print("L'authentification a échouée : ", reponse_serv)
     
-    def envoyer_message(self, msg:str):
+    def envoyer_message(self, msg:str)-> None:
         tab_octets = msg.encode(encoding="utf-8")
         self.__socket_envoi.sendto(tab_octets, (self.__ip_serv, 6100))
         
