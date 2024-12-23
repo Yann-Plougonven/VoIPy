@@ -92,7 +92,8 @@ class Client:
         self.__ip_serv: str
         
         # Déclaration des sockets
-        self.__socket_envoi_msg: socket
+        self.__socket_envoi: socket
+        self.__socket_reception: socket
         
         # Instanciation des attributs
         self.__login = login
@@ -102,6 +103,10 @@ class Client:
         # Création du socket d'envoi de messages
         self.__socket_envoi = socket(AF_INET, SOCK_DGRAM)
         self.__socket_envoi.bind(("", 5000))
+        
+        # Création du socket de réception de messages
+        self.__socket_reception = socket(AF_INET, SOCK_DGRAM)
+        self.__socket_reception.bind(("", 5101))
         
         # Tentative d'authentification auprès du serveur
         self.authentification()
@@ -128,7 +133,7 @@ class Client:
         
     def recevoir_message(self)-> str:
         # TODO actuellement on recoit l'UDP sur le port d'émission 5000, à changer en 5101
-        tab_octets = self.__socket_envoi.recv(255)
+        tab_octets = self.__socket_reception.recv(255)
         msg = tab_octets.decode(encoding="utf-8")
         return msg
 
@@ -140,6 +145,3 @@ if __name__ == "__main__":
     
     ihm_auth: IHM_Authentification
     ihm_auth = IHM_Authentification()
-    
-    # client: Client
-    # client = Client()

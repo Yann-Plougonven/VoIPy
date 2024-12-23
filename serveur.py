@@ -72,7 +72,7 @@ class Service_Signalisation:
         tab_octets: bytearray
         
         tab_octets = msg.encode(encoding="utf-8")
-        self.__socket_emission.sendto(tab_octets, (ip_client, 5000)) # remplacer par 5101
+        self.__socket_emission.sendto(tab_octets, (ip_client, 5101))
         
     def heure(self)-> str:
         return datetime.now().strftime("%m/%d/%y %H:%M:%S")
