@@ -7,12 +7,15 @@ from pyaudio import *
 from socket import *
 from tkinter import *
 
-class IHM_Connexion(Tk):
-    def __init__(self, client)-> None:
+class IHM_Authentification(Tk):
+    # Utilisation du protocole UDP : on n'établit pas de connexion avec le serveur,
+    # le client lui indique simplement sa présence en s'authentifiant
+    def __init__(self)-> None:
         Tk.__init__(self)
         
         # déclaration des attributs
         self.__client: Client
+        self.__ip_client: str
         
         self.__frame_auth: Frame
         self.__entry_login: Entry
@@ -21,14 +24,15 @@ class IHM_Connexion(Tk):
         self.__label_mdp: Label
         
         self.__frame_serv: Frame
+        self.__label_ip_client: Label
         self.__entry_ip_serv: Entry
         self.__label_ip_serv: Label
-        self.__btn_connexion: Button
+        self.__btn_auth: Button
         
-        # instanciation des attributs
-        self.__client = client # récupération de l'objet client
-        self.title("Connexion au serveur")
+        # Instanciation des attributs
+        self.title("Authentification auprès du serveur")
         self.geometry(f"{LARGEUR_FEN}x{HAUTEUR_FEN}")
+        self.__ip_client = gethostbyname(gethostname())
         
         # Titre principal
         self.__label_titre = Label(self, text="VoIPy", font=("Helvetica", 24, "bold"))
@@ -41,18 +45,12 @@ class IHM_Connexion(Tk):
         self.__entry_mdp = Entry(self.__frame_auth, width=50, show="*")
         self.__label_mdp = Label(self.__frame_auth, text="Mot de passe")
         
-        # Frame de connexion au serveur
+        # Frame de choix du serveur
         self.__frame_serv = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
+        self.__label_ip_client = Label(self.__frame_serv, text=f"Votre IP client : {self.__ip_client}")
         self.__entry_ip_serv = Entry(self.__frame_serv, width=50)
         self.__label_ip_serv = Label(self.__frame_serv, text="IP du serveur VoIP")
-        
-        print(self.__entry_login.get())
-        
-        # J'ai fait nimp, on ne peut pas faire d'authentification comme en TCP, juste prévenir le serv qu'on a cette IP  
-        self.__btn_connexion = Button(self.__frame_serv, text="Connexion",
-                                      command=self.__client.connexion(self.__entry_login.get(), 
-                                                                      self.__entry_mdp.get(), 
-                                                                      self.__entry_ip_serv.get()))
+        self.__btn_auth = Button(self.__frame_serv, text="Authentification", command=self.authentification)
         
         # Ajout des widgets
         self.__frame_auth.pack(pady=20)
@@ -62,18 +60,22 @@ class IHM_Connexion(Tk):
         self.__entry_mdp.grid(row=3, column=0, pady=5)
         
         self.__frame_serv.pack(pady=20)
-        self.__label_ip_serv.grid(row=0, column=0, pady=5)
-        self.__entry_ip_serv.grid(row=1, column=0, pady=5)
-        self.__btn_connexion.grid(row=2, column=0, pady=20)
+        self.__label_ip_client.grid(row=0, column=0, pady=5)
+        self.__label_ip_serv.grid(row=1, column=0, pady=5)
+        self.__entry_ip_serv.grid(row=2, column=0, pady=5)
+        self.__btn_auth.grid(row=3, column=0, pady=20)
         
         # lancer l'IHM
         self.mainloop()
         
+    def authentification(self):
+        self.__client = Client(self.__entry_login.get(), self.__entry_mdp.get(), self.__entry_ip_serv.get(), self.__ip_client) 
+
 
 class IHM_Contacts(Toplevel):
-    def __init__(self, ihm_connexion: IHM_Connexion)-> None:
+    def __init__(self, ihm_authentification: IHM_Authentification)-> None:
         Toplevel.__init__(self)
-        self.ihm_connexion: IHM_Connexion
+        self.ihm_connexion: IHM_Authentification
 
 
 class IHM_Appel(Toplevel):
@@ -83,13 +85,54 @@ class IHM_Appel(Toplevel):
 
 
 class Client:
-    def __init__(self)-> None:
-        # J'ai fait nimp, on ne peut pas faire d'authentification comme en TCP, juste prévenir le serv qu'on a cette IP  
-        self.__ihm_connexion: IHM_Connexion
-        self.__ihm_connexion = IHM_Connexion(self)
+    def __init__(self, login:str, mdp:str, ip_serv:str, ip_client:str)-> None:
+        
+        # Déclaration des attributs       
+        self.__login: str
+        self.__mdp: str
+        self.__ip_serv: str
+        self.__ip_client:str
+        
+        # Déclaration des sockets
+        self.__socket_envoi_msg: socket
+        
+        # Instanciation des attributs
+        self.__login = login
+        self.__mdp = mdp
+        self.__ip_serv = ip_serv
+        self.__ip_client = ip_client
+        
+        # Création du socket d'envoi de messages
+        self.__socket_envoi = socket(AF_INET, SOCK_DGRAM)
+        self.__socket_envoi.bind(("", 5000))
+        
+        # Tentative d'authentification auprès du serveur
+        self.authentification()
     
-    def connexion(login:str, mdp:str, ip_serv:str):
-        pass
+    def authentification(self):
+        reponse_serv: str
+        
+        print("Tentative d'authentification du client auprès du serveur.")
+        self.envoyer_message(f"AUTH REQUEST {self.__ip_client} {self.__login} {self.__mdp}")
+        
+        print("En attente de la réponse du serveur...")
+        reponse_serv = self.recevoir_message()
+        
+        if reponse_serv.startswith("AUTH ACCEPT"):
+            print("Authentification réussie.")
+            # TODO ouvrir le port d'écoute 5101
+            
+        else:
+            print("L'authentification a échouée : ", reponse_serv)
+    
+    def envoyer_message(self, msg:str):
+        tab_octets = msg.encode(encoding="utf-8")
+        self.__socket_envoi.sendto(tab_octets, (self.__ip_serv, 6100))
+        
+    def recevoir_message(self)-> str:
+        tab_octets = self.__socket_envoi.recv(255)
+        msg = tab_octets.decode(encoding="utf-8")
+        return msg
 
 
 
@@ -97,5 +140,8 @@ if __name__ == "__main__":
     LARGEUR_FEN:int = 375
     HAUTEUR_FEN:int = 700
     
-    client: Client
-    client = Client()
+    ihm_auth: IHM_Authentification
+    ihm_auth = IHM_Authentification()
+    
+    # client: Client
+    # client = Client()
