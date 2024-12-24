@@ -48,7 +48,7 @@ class IHM_Authentification(Tk):
         self.__entry_ip_serv = Entry(self.__frame_serv, width=50)
         self.__entry_ip_serv.insert(0, "127.0.0.1") # valeur par défaut
         self.__label_ip_serv = Label(self.__frame_serv, text="IP du serveur VoIP")
-        self.__btn_auth = Button(self.__frame_serv, text="Authentification", command=self.authentification) # lance l'authentification
+        self.__btn_auth = Button(self.__frame_serv, text="Authentification", command=self.creer_utilisateur) # lance la création de l'utilisateur (et son authentification)
         
         # Ajout des widgets
         self.__frame_auth.pack(pady=20)
@@ -69,18 +69,19 @@ class IHM_Authentification(Tk):
         # lancer l'IHM
         self.mainloop()
         
-    def authentification(self)-> None:
+    def creer_utilisateur(self)-> None:
         # (il est nécessaire de récupérer les valeurs renseignées champs avant de fermer la fenêtre)
         login: str
         mdp: str
         ip_serv: str
+        utilisateur: Utilisateur
         
         login = self.__entry_login.get()
         mdp = self.__entry_mdp.get()
         ip_serv = self.__entry_ip_serv.get()
-        
         self.destroy()
-        self.__client = Client(login, mdp, ip_serv)
+        
+        utilisateur = Utilisateur(login, mdp, ip_serv)
         
     # def quit(self)-> None: # TODO
     #     self.destroy()
@@ -121,7 +122,7 @@ class IHM_Contacts(Tk):
         self.destroy()
         self.__ihm_appel = IHM_Appel(contact)
 
-# TODO INTEGRATION EXPERIMENTALE DE L'INTERFACE TELEPHONE, IL FAUT AJOUTER UNE INTERFACE CONTACTS
+# TODO INTEGRATION EXPERIMENTALE DE L'INTERFACE TELEPHONE
 class IHM_Appel(Tk):
     def __init__(self, correspondant: str)-> None:
         super().__init__()
@@ -175,7 +176,7 @@ class IHM_Appel(Tk):
         print("Appel lancé ou raccroché!")
 
 
-class Client:
+class Utilisateur:
     def __init__(self, login:str, mdp:str, ip_serv:str)-> None:
         
         # Déclaration des attributs       
@@ -208,7 +209,7 @@ class Client:
     def authentification(self)-> None:
         reponse_serv: str
         
-        print("Tentative d'authentification du client auprès du serveur.")
+        print("Tentative d'authentification de l'utilisateur auprès du serveur.")
         self.envoyer_message(f"AUTH REQUEST {self.__login}:{self.__mdp}")
         
         print("En attente de la réponse du serveur...")
@@ -216,11 +217,11 @@ class Client:
         
         if reponse_serv.startswith("AUTH ACCEPT"):
             print("Authentification réussie.")
-            # self.__ihm_appel = IHM_Appel()
             self.__ihm_contacts = IHM_Contacts(["John Doe", "Alice", "Bob", "Eve", "aaa", "bbb", "ccc", "ddd", "eee", "fff", "ggg", "hhh", "i", "j", "k", "l", "m", "n"]) # TODO à remplacer par la liste des collaborateurs donnée par le serveur
             
         else:
             print("L'authentification a échouée : ", reponse_serv)
+            # TODO Rappeller une nouvelle IHM d'authentification ?
     
     def envoyer_message(self, msg:str)-> None:
         tab_octets = msg.encode(encoding="utf-8")
@@ -230,7 +231,6 @@ class Client:
         tab_octets = self.__socket_reception.recv(255)
         msg = tab_octets.decode(encoding="utf-8")
         return msg
-
 
 
 if __name__ == "__main__":
