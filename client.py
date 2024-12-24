@@ -14,9 +14,7 @@ class IHM_Authentification(Tk):
     def __init__(self)-> None:
         Tk.__init__(self)
         
-        # déclaration des attributs
-        self.__ip_client: str
-        
+        # déclaration des attributs 
         self.__frame_auth: Frame
         self.__entry_login: Entry
         self.__label_login: Label
@@ -48,7 +46,7 @@ class IHM_Authentification(Tk):
         self.__frame_serv = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
         self.__label_ip_client = Label(self.__frame_serv, text=f"Votre IP client : {gethostbyname(gethostname())}") # affiche l'IP du client
         self.__entry_ip_serv = Entry(self.__frame_serv, width=50)
-        self.__entry_ip_serv.insert(0, "192.168.1.159") # valeur par défaut
+        self.__entry_ip_serv.insert(0, "127.0.0.1") # valeur par défaut
         self.__label_ip_serv = Label(self.__frame_serv, text="IP du serveur VoIP")
         self.__btn_auth = Button(self.__frame_serv, text="Authentification", command=self.authentification) # lance l'authentification
         
@@ -65,32 +63,70 @@ class IHM_Authentification(Tk):
         self.__entry_ip_serv.grid(row=2, column=0, pady=5)
         self.__btn_auth.grid(row=3, column=0, pady=20)
         
-        # intercepte la fermeture de la fenêtre et appellera la méthode quit TODO
+        # intercepte la fermeture de la fenêtre et appellera la méthode quit TODO sur les 3 IHM
         # self.protocol("WM_DELETE_WINDOW", self.quit)
         
         # lancer l'IHM
         self.mainloop()
         
     def authentification(self)-> None:
-        self.__client = Client(self.__entry_login.get(), self.__entry_mdp.get(), self.__entry_ip_serv.get())
-        self.destroy() # détruire la fenêtre d'authentification
+        # (il est nécessaire de récupérer les valeurs renseignées champs avant de fermer la fenêtre)
+        login: str
+        mdp: str
+        ip_serv: str
+        
+        login = self.__entry_login.get()
+        mdp = self.__entry_mdp.get()
+        ip_serv = self.__entry_ip_serv.get()
+        
+        self.destroy()
+        self.__client = Client(login, mdp, ip_serv)
         
     # def quit(self)-> None: # TODO
     #     self.destroy()
 
 
-class IHM_Contacts(Toplevel):
-    def __init__(self, ihm_authentification: IHM_Authentification)-> None:
-        Toplevel.__init__(self)
-        self.ihm_connexion: IHM_Authentification
-
+class IHM_Contacts(Tk):
+    def __init__(self, liste_collaborateurs)-> None:
+        Tk.__init__(self)
+        
+        # déclaration des attributs
+        self.__liste_collaborateurs: list[str] = liste_collaborateurs
+        self.__ihm_appel: IHM_Appel
+        self.__frame_contacts: Frame
+        self.__label_titre: Label
+        
+        # Instanciation des attributs
+        self.title("Choix du collaborateur à appeler")
+        self.geometry(f"{LARGEUR_FEN}x{HAUTEUR_FEN}")
+        
+        # Titre principal
+        self.__label_titre = Label(self, text="Appeler un collaborateur", font=("Helvetica", 20, "bold"))
+        self.__label_titre.pack(pady=20)
+        
+        # Frame des contacts
+        self.__frame_contacts = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
+        self.__frame_contacts.pack(pady=20)
+        
+        # Boutons des contacts
+        for contact in self.__liste_collaborateurs:
+            btn_contact = Button(self.__frame_contacts, text=contact, font=("Helvetica", 14), command=lambda c=contact: self.appeler_contact(c))
+            btn_contact.pack(pady=5, fill=X)
+        
+        # lancer l'IHM
+        self.mainloop()
+        
+    def appeler_contact(self, contact):
+        print(f"Ouverture de l'interface d'appel avec {contact}")
+        self.destroy()
+        self.__ihm_appel = IHM_Appel(contact)
 
 # TODO INTEGRATION EXPERIMENTALE DE L'INTERFACE TELEPHONE, IL FAUT AJOUTER UNE INTERFACE CONTACTS
 class IHM_Appel(Tk):
-    def __init__(self):
+    def __init__(self, correspondant: str)-> None:
         super().__init__()
         self.title("Interface Téléphone")
-        self.geometry("300x600")  # Taille pour simuler un écran de téléphone
+        self.geometry(f"{LARGEUR_FEN}x{HAUTEUR_FEN}")  # Taille pour simuler un écran de téléphone
         self.configure(bg="white")  # Fond blanc
 
         # État de l'appel
@@ -146,7 +182,8 @@ class Client:
         self.__login: str
         self.__mdp: str
         self.__ip_serv: str
-        self.__ihm_appel: IHM_Appel
+        # self.__ihm_appel: IHM_Appel
+        self.__ihm_contacts: IHM_Contacts
         
         # Déclaration des sockets
         self.__socket_envoi: socket
@@ -179,7 +216,8 @@ class Client:
         
         if reponse_serv.startswith("AUTH ACCEPT"):
             print("Authentification réussie.")
-            self.__ihm_appel = IHM_Appel()
+            # self.__ihm_appel = IHM_Appel()
+            self.__ihm_contacts = IHM_Contacts(["John Doe", "Alice", "Bob", "Eve", "aaa", "bbb", "ccc", "ddd", "eee", "fff", "ggg", "hhh", "i", "j", "k", "l", "m", "n"]) # TODO à remplacer par la liste des collaborateurs donnée par le serveur
             
         else:
             print("L'authentification a échouée : ", reponse_serv)
