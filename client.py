@@ -66,6 +66,8 @@ class IHM_Authentification(Tk):
         # intercepte la fermeture de la fenêtre et appellera la méthode quit TODO sur les 3 IHM
         # self.protocol("WM_DELETE_WINDOW", self.quit)
         
+        # TODO : ajouter le support de l'appui sur la touche "Entrée" pour valider l'authentification
+        
         # lancer l'IHM
         self.mainloop()
         
@@ -107,12 +109,12 @@ class IHM_Contacts(Tk):
         
         # Frame des contacts
         self.__frame_contacts = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
-        self.__frame_contacts.pack(pady=20)
+        self.__frame_contacts.pack(pady=20, fill='x')
         
         # Boutons des contacts
         for contact in self.__liste_collaborateurs:
             btn_contact = Button(self.__frame_contacts, text=contact, font=("Helvetica", 14), command=lambda c=contact: self.appeler_contact(c))
-            btn_contact.pack(pady=5, fill=X)
+            btn_contact.pack(pady=4, fill=X)
         
         # lancer l'IHM
         self.mainloop()
