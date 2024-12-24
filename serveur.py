@@ -70,9 +70,12 @@ class Service_Signalisation:
             
     def envoyer_signalisation(self, ip_client:str, msg: str)-> None:
         tab_octets: bytearray
+        port_client: int
+        port_client = 5101
         
         tab_octets = msg.encode(encoding="utf-8")
-        self.__socket_emission.sendto(tab_octets, (ip_client, 5101))
+        self.__socket_emission.sendto(tab_octets, (ip_client, port_client))
+        print(f"[{self.heure()}] [TO {ip_client}:{port_client}] {msg}")
         
     def heure(self)-> str:
         return datetime.now().strftime("%m/%d/%y %H:%M:%S")
@@ -80,7 +83,7 @@ class Service_Signalisation:
     def authentifier(self, ip_client:str, msg: str)-> None:
         
         if True: # TODO consulter la BDD pour vérifier que l'utilisateur est bien enregistré
-            print(f"[{self.heure()}] [Serveur] Authentification réussie pour {ip_client}.") # TODO pseudo de l'utilisateur
+            print(f"[{self.heure()}] [INFO] Authentification réussie pour {ip_client}.") # TODO pseudo de l'utilisateur
             self.envoyer_signalisation(ip_client, "AUTH ACCEPT")
             # TODO mettre à jour la BDD avec l'adresse IP du client
             # Ajouter le client à la liste des clients actuellement authentifiés
