@@ -7,6 +7,7 @@ from pyaudio import *
 from socket import *
 import sqlite3
 from datetime import datetime
+import os.path
 
 class Service_Signalisation:
     def __init__(self) -> None:
@@ -88,14 +89,22 @@ class Service_Signalisation:
         connecteur:sqlite3.Connection
         curseur:sqlite3.Cursor
         nom_bdd: str
+        chemin_bdd: str
         reponse_bdd: str
         reponse_bdd = None
         
-        print(f"[{self.heure()}] [INFO] [SQL] {requete}")
         nom_bdd = "utilisateurs.sqlite3"
-        connecteur = sqlite3.connect(nom_bdd)
+        
+        # Définition du chemin absolu de la base de données (nécessaire sinon elle ne s'ouvre pas)
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        chemin_bdd = os.path.join(BASE_DIR, nom_bdd)
+        
+        # Connexion à la BDD
+        print(f"[{self.heure()}] [INFO] [SQL] {requete}")
+        connecteur = sqlite3.connect(chemin_bdd)
         curseur = connecteur.cursor()
         
+        # Execution de la requete
         try:
             curseur.execute(requete)
             reponse_bdd = curseur.fetchall()
@@ -119,7 +128,7 @@ class Service_Signalisation:
         login, mdp = msg.split(":") # séparation du login et du mot de passe
 
         # Interrogation de la BDD et enregistrement de la réponse
-        requete_bdd = f"SELECT * FROM utilisateurs WHERE login = '{login}' AND password = '{mdp}'"
+        requete_bdd = f"SELECT * FROM utilisateurs WHERE login = '{login}' AND password = '{mdp}';"
         reponse_bdd = self.requete_BDD(requete_bdd)
         
         if reponse_bdd: # TODO consulter la BDD pour vérifier que l'utilisateur est bien enregistré
