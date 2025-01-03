@@ -25,7 +25,6 @@ class Service_Signalisation:
         
         self.ecouter_signalisation()
 
-   
     def ecouter_signalisation(self) -> None:
         tab_octets: bytearray
         msg: str
@@ -47,7 +46,6 @@ class Service_Signalisation:
             
             # Traitement du message
             self.traiter_signalisation(ip_client, msg)
-
       
     def traiter_signalisation(self, ip_client:str, msg: str)-> None:
         # Traitement du message
@@ -71,7 +69,6 @@ class Service_Signalisation:
         
         elif msg.startswith("CALL END REQUEST"):
             self.terminer_appel(ip_client, msg)
-
             
     def envoyer_signalisation(self, ip_client:str, msg: str)-> None:
         tab_octets: bytearray
@@ -119,8 +116,7 @@ class Service_Signalisation:
         connecteur.close()
         
         return reponse_bdd
-        
-                
+             
     def authentifier(self, ip_client:str, msg: str)-> None:
         login: str
         mdp: str
@@ -149,6 +145,29 @@ class Service_Signalisation:
         else:
             print(f"[{self.heure()}] [INFO] Authentification REFUSÉE pour {login} sur le poste {ip_client}.")
             self.envoyer_signalisation(ip_client, "AUTH REJECT")
+    
+    def is_ip_authentifiée(self, ip_client:str)-> bool:
+        """Retourne True si un utilisateur est authentifié sur l'IP du client solicitant le serveur, False sinon.
+        
+        Args:
+            ip_client (str): Adresse IP du client solicitant le serveur.
+
+        Returns:
+            bool: True si un utilisateur est authentifié sur l'IP du client solicitant le serveur, False sinon.
+        """ 
+        requete_bdd: str
+        reponse_bdd: str
+        is_authentifiee: bool
+        is_authentifiee = False
+        
+        # Demander à la BDD si un utilisateur est authentifié sur l'IP du client solicitant le serveur
+        requete_bdd = f"SELECT * FROM utilisateurs WHERE ip = '{ip_client}' AND online = 1;"
+        reponse_bdd = self.requete_BDD(requete_bdd)
+        
+        if reponse_bdd: # Si la réponse n'est pas vide, l'IP de l'utilisateur est authentifié
+            is_authentifiee = True
+            
+        return is_authentifiee
             
     def deconnecter(self, ip_client:str, msg: str)-> None:
         # TODO vérifier que l'utilisateur est bien authentifié sur cette Ip
@@ -156,8 +175,24 @@ class Service_Signalisation:
         pass
     
     def envoyer_liste_contacts(self, ip_client:str)-> None:
-        # TODO vérifier que l'utilisateur est bien authentifié
-        self.envoyer_signalisation(ip_client, "CONTACTS LIST {'John Doe':'online', 'Alice':'online', 'Bob':'offline', 'Eve':'offline'}")  
+        requete_bdd: str
+        reponse_bdd: str
+        dict_contacts: dict
+        
+        if self.is_ip_authentifiée(ip_client):
+            
+            # Récupération de la liste des contacts et de leur statut dans la BDD
+            requete_bdd = f"SELECT login, online FROM utilisateurs;"
+            reponse_bdd = self.requete_BDD(requete_bdd)
+            
+            print(reponse_bdd)
+            
+            # Conversion de la réponse en un dictionnaire
+            dict_contacts = {login: "online" if online else "offline" for login, online in reponse_bdd}
+            
+            print(dict_contacts)
+            
+            self.envoyer_signalisation(ip_client, f"CONTACTS LIST {dict_contacts}")  
             
     def appeler(self, ip_client:str, msg: str)-> None:
         # TODO vérifier que l'utilisateur est bien authentifié
