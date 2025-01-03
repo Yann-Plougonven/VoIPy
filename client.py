@@ -90,22 +90,23 @@ class IHM_Authentification(Tk):
 
 
 class IHM_Contacts(Tk):
-    def __init__(self, reponse_serv_contacts: str)-> None:
+    def __init__(self, utilisateur)-> None:
         Tk.__init__(self)
         
         # déclaration des attributs
-        self.__dict_contacts: dict[str]
+        self.__utilisateur: Utilisateur
+        self.__login_utilisateur: str
         self.__ihm_appel: IHM_Appel
         self.__frame_contacts: Frame
         self.__label_titre: Label
         self.__label_sous_titre: Label
-        btn_contact: Button
-        btn_actualiser: Button
-        contact: str
+        self.__btn_actualiser: Button
         
         # Instanciation des attributs
         self.title("Choix du collaborateur à appeler")
         self.geometry(f"{LARGEUR_FEN}x{HAUTEUR_FEN}")
+        self.__utilisateur = utilisateur
+        self.__login_utilisateur = self.__utilisateur.get_login()
         
         # Titre principal
         self.__label_titre = Label(self, text="Appeler un collaborateur", font=("Helvetica", 20, "bold"))
@@ -114,33 +115,51 @@ class IHM_Contacts(Tk):
         self.__label_sous_titre.pack()
         
         # Bouton d'actualisation de la liste des contacts TODO
-        
+        self.__btn_actualiser = Button(self, text="Actualiser la liste", font=("Helvetica", 14), command=self.lister_contacts)
+        self.__btn_actualiser.pack(pady=10)
         
         # Frame des contacts
         self.__frame_contacts = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
         self.__frame_contacts.pack(pady=20, fill='x')
         
         # Liste/Boutons des contacts
-        # Supprimer l'entête "CONTACTS LIST" (13 premiers caractères de la chaine)
-        reponse_serv_contacts = reponse_serv_contacts[13:]
-        # Convertir la chaine en dictionnaire de contacts reliés à leur statut (online, offline)
-        self.__dict_contacts = eval(reponse_serv_contacts)
-        print(self.__dict_contacts)
+        self.lister_contacts()
+
+        # lancer l'IHM
+        self.mainloop()
+    
+    def lister_contacts(self)-> None:
+        """Initialise ou actualise la liste des contacts.
+        Appelle la fonction actualiser_liste_contacts() de la classe Utilisateur pour obtenir la liste des contacts.
+        Note : le choix de ne pas passer la liste de contacts en paramètre de la classe IHM_Contacts
+        est dû au fait que la liste des contacts peut être actualisée par l'utilisateur
+        """
+        str_contacts: str
+        contact: str
+        widget: Widget
+        self.__dict_contacts: dict[str]
         
-        # Génération d'un bouton par contact
-        # TODO : si la liste de contact est trop grande, elle n'est pas affichée en entier : ajouter une barre de défilement ?
+        str_contacts = self.__utilisateur.actualiser_liste_contacts() # obtenir les contacts sous forme de chaine
+        str_contacts = str_contacts[13:] # supprimer l'entête "CONTACTS LIST" (13 premiers caractères de la chaine)
+        self.__dict_contacts = eval(str_contacts) # convertir la chaine en dicts de contacts liés à leur statut (online, offline)
+                
+        # Supprimer les anciens boutons contacts
+        for widget in self.__frame_contacts.winfo_children():
+            widget.destroy()
+        
+        # Ajouter les contacts sous forme de boutons
         for contact in self.__dict_contacts.keys():          
             btn_contact = Button(self.__frame_contacts, text=contact, font=("Helvetica", 14), command=lambda c=contact: self.appeler_contact(c))
             btn_contact.pack(pady=4, fill=X)
             
-            if self.__dict_contacts[contact] == "online":
+            # Si le contact est en ligne (et n'est pas le client lui même), le bouton est vert.
+            if self.__dict_contacts[contact] == "online" and contact != self.__login_utilisateur:
                 btn_contact.configure(bg="PaleGreen1")
+            
+            # Sinon, si le contact est hors ligne ou est le client lui même, le bouton est rouge et désactivé.
             else:
                 btn_contact.configure(bg="RosyBrown1")
                 btn_contact.configure(state=DISABLED)
-        
-        # lancer l'IHM
-        self.mainloop()
         
     def appeler_contact(self, contact):
         print(f"Ouverture de l'interface d'appel avec {contact}")
@@ -244,18 +263,8 @@ class Utilisateur:
         # Si l'authentification est réussie, on récupère la liste des contacts et affiche la fenêtre de contacts :
         if reponse_serv.startswith("AUTH ACCEPT"):
             print("Authentification réussie.")
+            self.__ihm_contacts = IHM_Contacts(self)
             
-            print("Tentative de récupération de la liste de contacts...")
-            self.envoyer_message(f"CONTACTS REQUEST")
-            reponse_serv_contacts = self.recevoir_message()
-            
-            if reponse_serv_contacts.startswith("CONTACTS LIST"):
-                print("Ouverture de l'interface de sélection des contacts.")
-                self.__ihm_contacts = IHM_Contacts(reponse_serv_contacts)
-            
-            else: # Si la liste des contacts n'a pas pu être récupérée
-                print("Erreur : la liste des contacts n'a pas pu être récupérée.")
-        
         # Si l'authentification est refusée :
         else:
             print("L'authentification a échouée : ", reponse_serv)
@@ -269,6 +278,25 @@ class Utilisateur:
         tab_octets = self.__socket_reception.recv(255)
         msg = tab_octets.decode(encoding="utf-8")
         return msg
+    
+    def actualiser_liste_contacts(self)-> str:
+        reponse_serv_contacts: str
+        reponse_serv_contacts = "" # TODO mieux gérer l'erreur si la liste des contacts n'a pas pu être récupérée
+        
+        print("Tentative d'actualisation de la liste de contacts...")
+        self.envoyer_message(f"CONTACTS REQUEST")
+        reponse_serv_contacts = self.recevoir_message()
+        
+        if reponse_serv_contacts.startswith("CONTACTS LIST"):
+            print("La liste de contacts a été récupérée.")
+        
+        else: # Si la liste des contacts n'a pas pu être récupérée
+                print("Erreur : la liste des contacts n'a pas pu être récupérée.")
+        
+        return reponse_serv_contacts
+    
+    def get_login(self)-> str:
+        return self.__login
 
 
 if __name__ == "__main__":
