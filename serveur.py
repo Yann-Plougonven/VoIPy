@@ -5,6 +5,7 @@
 
 from pyaudio import *
 from socket import *
+import sqlite3
 from datetime import datetime
 
 class Service_Signalisation:
@@ -82,10 +83,47 @@ class Service_Signalisation:
         
     def heure(self)-> str:
         return datetime.now().strftime("%m/%d/%y %H:%M:%S")
+    
+    def requete_BDD(self, requete:str)-> str:
+        connecteur:sqlite3.Connection
+        curseur:sqlite3.Cursor
+        nom_bdd: str
+        reponse_bdd: str
+        reponse_bdd = None
+        
+        print(f"[{self.heure()}] [INFO] [SQL] {requete}")
+        nom_bdd = "utilisateurs.sqlite3"
+        connecteur = sqlite3.connect(nom_bdd)
+        curseur = connecteur.cursor()
+        
+        try:
+            curseur.execute(requete)
+            reponse_bdd = curseur.fetchall()
+        
+        except Exception as e:
+            print(f"[{self.heure()}] [ERREUR] [SQL] {e}")
+        
+        connecteur.commit()
+        connecteur.close()
+        
+        return reponse_bdd
+        
                 
     def authentifier(self, ip_client:str, msg: str)-> None:
+        login: str
+        mdp: str
+        requete_bdd: str
+        reponse_bdd: str
         
-        if True: # TODO consulter la BDD pour vérifier que l'utilisateur est bien enregistré
+        msg = msg[13:] # suppression de l'entête "AUTH REQUEST" (13 caractères) du messag reçu
+        login, mdp = msg.split(":") # séparation du login et du mot de passe
+
+        # Interrogation de la BDD et enregistrement de la réponse
+        requete_bdd = f"SELECT * FROM utilisateurs WHERE login = '{login}' AND password = '{mdp}'"
+        reponse_bdd = self.requete_BDD(requete_bdd)
+        
+        if reponse_bdd: # TODO consulter la BDD pour vérifier que l'utilisateur est bien enregistré
+            
             print(f"[{self.heure()}] [INFO] Authentification réussie pour {ip_client}.") # TODO pseudo de l'utilisateur
             self.envoyer_signalisation(ip_client, "AUTH ACCEPT")
             # TODO mettre à jour la BDD avec l'adresse IP du client

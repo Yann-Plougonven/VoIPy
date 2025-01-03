@@ -167,6 +167,7 @@ class IHM_Contacts(Tk):
         self.__ihm_appel = IHM_Appel(contact)
 
 # TODO INTEGRATION EXPERIMENTALE DE L'INTERFACE TELEPHONE
+# TODO ajouter __ devant les attributs
 class IHM_Appel(Tk):
     def __init__(self, correspondant: str)-> None:
         super().__init__()
@@ -267,7 +268,7 @@ class Utilisateur:
             
         # Si l'authentification est refusée :
         else:
-            print("L'authentification a échouée : ", reponse_serv)
+            print("L'authentification a échouée :", reponse_serv)
             # TODO Rappeller une nouvelle IHM d'authentification ?
     
     def envoyer_message(self, msg:str)-> None:
