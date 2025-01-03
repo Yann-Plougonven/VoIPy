@@ -83,11 +83,14 @@ class Service_Signalisation:
         print(f"[{self.heure()}] [TO {ip_client}:{port_client}] {msg}")
         
     def heure(self)-> str:
-        return datetime.now().strftime("%m/%d/%y %H:%M:%S")
+        # TODO remplacer cette fonction par une autre qui prend en paramètre le msg à log,
+        # lui ajoute l'heure au début, enregistre le tout dans un fichier de log et affiche le tout dans la console
+        return datetime.now().strftime("%d/%m/%y %H:%M:%S")
     
     def requete_BDD(self, requete:str)-> str:
         connecteur:sqlite3.Connection
         curseur:sqlite3.Cursor
+        dossier_de_travail: str
         nom_bdd: str
         chemin_bdd: str
         reponse_bdd: str
@@ -95,10 +98,10 @@ class Service_Signalisation:
         
         nom_bdd = "utilisateurs.sqlite3"
         
-        # Définition du chemin absolu de la base de données (nécessaire sinon elle ne s'ouvre pas)
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        chemin_bdd = os.path.join(BASE_DIR, nom_bdd)
-        
+        # Définition du chemin absolu de la base de données (nécessaire, sinon elle ne s'ouvre pas)
+        dossier_de_travail = os.path.dirname(os.path.abspath(__file__))
+        chemin_bdd = os.path.join(dossier_de_travail, nom_bdd)
+                
         # Connexion à la BDD
         print(f"[{self.heure()}] [INFO] [SQL] {requete}")
         connecteur = sqlite3.connect(chemin_bdd)
@@ -124,21 +127,27 @@ class Service_Signalisation:
         requete_bdd: str
         reponse_bdd: str
         
-        msg = msg[13:] # suppression de l'entête "AUTH REQUEST" (13 caractères) du messag reçu
-        login, mdp = msg.split(":") # séparation du login et du mot de passe
+        msg = msg[13:] # suppression de l'entête "AUTH REQUEST" (13 caractères) du message reçu
+        login, mdp = msg.split(":") # séparation du login et du mot de passe reçus
 
         # Interrogation de la BDD et enregistrement de la réponse
         requete_bdd = f"SELECT * FROM utilisateurs WHERE login = '{login}' AND password = '{mdp}';"
         reponse_bdd = self.requete_BDD(requete_bdd)
         
-        if reponse_bdd: # TODO consulter la BDD pour vérifier que l'utilisateur est bien enregistré
+        # Si le couple login:mdp existe dans la BDD (authentification réussie) :
+        if reponse_bdd:
+            print(f"[{self.heure()}] [INFO] Authentification réussie pour {login} sur le poste {ip_client}.")
             
-            print(f"[{self.heure()}] [INFO] Authentification réussie pour {ip_client}.") # TODO pseudo de l'utilisateur
+            # Mettre à jour l'IP du client et son statut (online) dans la BDD
+            requete_bdd = f"UPDATE utilisateurs SET ip = '{ip_client}', online = 1 WHERE login = '{login}';"
+            self.requete_BDD(requete_bdd)
+            
+            # Informer le client qu'il est authentifié
             self.envoyer_signalisation(ip_client, "AUTH ACCEPT")
-            # TODO mettre à jour la BDD avec l'adresse IP du client
-            # Ajouter le client à la liste des clients actuellement authentifiés
-        
-        else: # utilisateur inexistant
+            
+        # Si le couple login:mdp n'existe pas dans la BDD (authentification refusée) :
+        else:
+            print(f"[{self.heure()}] [INFO] Authentification REFUSÉE pour {login} sur le poste {ip_client}.")
             self.envoyer_signalisation(ip_client, "AUTH REJECT")
             
     def deconnecter(self, ip_client:str, msg: str)-> None:
