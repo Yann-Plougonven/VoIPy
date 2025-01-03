@@ -148,6 +148,8 @@ class Service_Signalisation:
     
     def is_ip_authentifiée(self, ip_client:str)-> bool:
         """Retourne True si un utilisateur est authentifié sur l'IP du client solicitant le serveur, False sinon.
+        (Il ne s'agit évidement pas d'une méthode d'authentification très sécurisée, mais d'une simple vérification de l'IP
+        pour limiter les risques d'usurpation d'identité. Il faudrait ajouter d'autres méthodes de sécurisation)
         
         Args:
             ip_client (str): Adresse IP du client solicitant le serveur.
