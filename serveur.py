@@ -52,7 +52,7 @@ class Service_Signalisation:
         if msg.startswith("AUTH REQUEST"):
             self.authentifier(ip_client, msg)
             
-        if msg.startswith("LOGOUT REQUEST"):
+        if msg.startswith("LOGOUT"):
             self.deconnecter(ip_client, msg)
             
         if msg.startswith("CONTACTS REQUEST"):
@@ -172,9 +172,15 @@ class Service_Signalisation:
         return is_authentifiee
             
     def deconnecter(self, ip_client:str, msg: str)-> None:
-        # TODO vérifier que l'utilisateur est bien authentifié sur cette Ip
-        # TODO déconnecter le client (mise la jour de la liste des clients actuellement authentifiés)
-        pass
+        login: str
+        requete_bdd: str
+        
+        # Récupération du login de l'utilisateur à déconnecter
+        login = msg[7:] # suppression de l'entête "LOGOUT" (7 caractères) du message reçu
+        
+        # Demander au serveur de déconnecter l'utilisateur
+        requete_bdd = f"UPDATE utilisateurs SET online = 0 WHERE login = '{login}' AND ip = '{ip_client}';"
+        self.requete_BDD(requete_bdd)
     
     def envoyer_liste_contacts(self, ip_client:str)-> None:
         requete_bdd: str
@@ -186,14 +192,10 @@ class Service_Signalisation:
             # Récupération de la liste des contacts et de leur statut dans la BDD
             requete_bdd = f"SELECT login, online FROM utilisateurs;"
             reponse_bdd = self.requete_BDD(requete_bdd)
-            
-            print(reponse_bdd)
-            
+                        
             # Conversion de la réponse en un dictionnaire
             dict_contacts = {login: "online" if online else "offline" for login, online in reponse_bdd}
-            
-            print(dict_contacts)
-            
+                        
             self.envoyer_signalisation(ip_client, f"CONTACTS LIST {dict_contacts}")  
             
     def appeler(self, ip_client:str, msg: str)-> None:

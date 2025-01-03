@@ -122,6 +122,9 @@ class IHM_Contacts(Tk):
         self.__frame_contacts = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
         self.__frame_contacts.pack(pady=20, fill='x')
         
+        # Intercepte la fermeture de la fenêtre et appelle la méthode quit
+        self.protocol("WM_DELETE_WINDOW", self.quit)
+        
         # Liste/Boutons des contacts
         self.lister_contacts()
 
@@ -165,15 +168,26 @@ class IHM_Contacts(Tk):
         print(f"Ouverture de l'interface d'appel avec {contact}")
         self.destroy()
         self.__ihm_appel = IHM_Appel(contact)
+        
+    def quit(self)-> None:
+        """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
+        """
+        self.__utilisateur.deconnexion()
+        
+        # TODO gestion de la fermeture de la fenêtre de contacts (j'ai pas regardé comment faire)
+        self.destroy() 
 
 # TODO INTEGRATION EXPERIMENTALE DE L'INTERFACE TELEPHONE
 # TODO ajouter __ devant les attributs
 class IHM_Appel(Tk):
-    def __init__(self, correspondant: str)-> None:
+    def __init__(self, utilisateur, correspondant: str)-> None:
         super().__init__()
         self.title("Interface Téléphone")
         self.geometry(f"{LARGEUR_FEN}x{HAUTEUR_FEN}")  # Taille pour simuler un écran de téléphone
         self.configure(bg="white")  # Fond blanc
+        
+        self.__utilisateur: Utilisateur
+        self.__utilisateur = utilisateur
 
         # État de l'appel
         self.etat_appel = Label(self, text="État de l'appel : Ça sonne", font=("Arial", 12), bg="white")
@@ -219,6 +233,14 @@ class IHM_Appel(Tk):
 
     def appel(self):
         print("Appel lancé ou raccroché!")
+        
+    def quit(self)-> None:
+        """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
+        """
+        self.__utilisateur.deconnexion()
+        
+        # TODO gestion de la fermeture de la fenêtre de contacts (j'ai pas regardé comment faire)
+        self.destroy() 
 
 
 class Utilisateur:
@@ -270,6 +292,10 @@ class Utilisateur:
         else:
             print("L'authentification a échouée :", reponse_serv)
             # TODO Rappeller une nouvelle IHM d'authentification ?
+            
+    def deconnexion(self)-> None:
+        print("Information du serveur de notre déconnexion...")
+        self.envoyer_message(f"LOGOUT {self.__login}")
     
     def envoyer_message(self, msg:str)-> None:
         tab_octets = msg.encode(encoding="utf-8")
