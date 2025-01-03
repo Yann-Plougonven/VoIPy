@@ -44,7 +44,7 @@ class IHM_Authentification(Tk):
         
         # Frame de choix du serveur
         self.__frame_serv = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
-        self.__label_ip_client = Label(self.__frame_serv, text=f"Votre IP client : {gethostbyname(gethostname())}") # affiche l'IP du client
+        self.__label_ip_client = Label(self.__frame_serv, text=f"Votre IP client : {gethostbyname(gethostname())}") # TODO l'IP affichée n'est pas celle de la bonne carte réseau
         self.__entry_ip_serv = Entry(self.__frame_serv, width=50)
         self.__entry_ip_serv.insert(0, "127.0.0.1") # valeur par défaut
         self.__label_ip_serv = Label(self.__frame_serv, text="IP du serveur VoIP")
@@ -155,9 +155,13 @@ class IHM_Contacts(Tk):
             btn_contact = Button(self.__frame_contacts, text=contact, font=("Helvetica", 14), command=lambda c=contact: self.appeler_contact(c))
             btn_contact.pack(pady=4, fill=X)
             
-            # Si le contact est en ligne (et n'est pas le client lui même), le bouton est vert.
-            if self.__dict_contacts[contact] == "online" and contact != self.__login_utilisateur:
+            # Si le contact est en ligne, le bouton est vert.
+            if self.__dict_contacts[contact] == "online":
                 btn_contact.configure(bg="PaleGreen1")
+
+                # Si le contact est le client lui même, le bouton est désactivé.
+                if contact == self.__login_utilisateur:
+                    btn_contact.configure(state=DISABLED)
             
             # Sinon, si le contact est hors ligne ou est le client lui même, le bouton est rouge et désactivé.
             else:
@@ -165,16 +169,16 @@ class IHM_Contacts(Tk):
                 btn_contact.configure(state=DISABLED)
         
     def appeler_contact(self, contact):
-        print(f"Ouverture de l'interface d'appel avec {contact}")
-        self.destroy()
-        self.__ihm_appel = IHM_Appel(contact)
+        print(f"Ouverture de l'interface d'appel avec {contact}...")
+        self.destroy() # fermeture de la fenêtre de contacts
+        self.__ihm_appel = IHM_Appel(self, contact) # ouverture de l'interface d'appel
         
     def quit(self)-> None:
         """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
         """
         self.__utilisateur.deconnexion()
         
-        # TODO gestion de la fermeture de la fenêtre de contacts (j'ai pas regardé comment faire)
+        # TODO gestion de la fermeture des sockets (jsp si c'est nécessaire)
         self.destroy() 
 
 # TODO INTEGRATION EXPERIMENTALE DE L'INTERFACE TELEPHONE
@@ -224,6 +228,9 @@ class IHM_Appel(Tk):
             cadre_interactif, text=" Appel/Raccrocher", font=("Arial", 12), bg="lightgreen", command=self.appel
         )
         self.bouton_appel.pack(pady=20)
+        
+        # Intercepte la fermeture de la fenêtre et appelle la méthode quit
+        self.protocol("WM_DELETE_WINDOW", self.quit)
 
     def couper_micro(self):
         print("Micro coupé!")
@@ -237,7 +244,7 @@ class IHM_Appel(Tk):
     def quit(self)-> None:
         """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
         """
-        self.__utilisateur.deconnexion()
+        self.__utilisateur.deconnexion() # TODO fonctionne parfaitement sur le HP de Yann, mais pas sur le Asus de Yann
         
         # TODO gestion de la fermeture de la fenêtre de contacts (j'ai pas regardé comment faire)
         self.destroy() 
