@@ -152,7 +152,7 @@ class IHM_Contacts(Tk):
         
         # Ajouter les contacts sous forme de boutons
         for contact in self.__dict_contacts.keys():          
-            btn_contact = Button(self.__frame_contacts, text=contact, font=("Helvetica", 14), command=lambda c=contact: self.appeler_contact(c))
+            btn_contact = Button(self.__frame_contacts, text=contact, font=("Helvetica", 14), command=lambda c=contact: self.appeler_correspondant(c))
             btn_contact.pack(pady=4, fill=X)
             
             # Si le contact est en ligne, le bouton est vert.
@@ -168,10 +168,10 @@ class IHM_Contacts(Tk):
                 btn_contact.configure(bg="RosyBrown1")
                 btn_contact.configure(state=DISABLED)
         
-    def appeler_contact(self, contact):
-        print(f"Ouverture de l'interface d'appel avec {contact}...")
+    def appeler_correspondant(self, correspondant: str)-> None:
+        print(f"Ouverture de l'interface d'appel avec {correspondant}...")
         self.destroy() # fermeture de la fenêtre de contacts
-        self.__ihm_appel = IHM_Appel(self, contact) # ouverture de l'interface d'appel
+        self.__ihm_appel = IHM_Appel(self.__utilisateur, correspondant) # ouverture de l'interface d'appel
         
     def quit(self)-> None:
         """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
@@ -181,53 +181,62 @@ class IHM_Contacts(Tk):
         # TODO gestion de la fermeture des sockets (jsp si c'est nécessaire)
         self.destroy() 
 
-# TODO INTEGRATION EXPERIMENTALE DE L'INTERFACE TELEPHONE
-# TODO ajouter __ devant les attributs
+# TODO : faire en sorte que toutes les IMH aient la même charte graphique, et supprimer les éléments inutiles 
+# de IHM_Appel (certainement la liste déroulante de contacts)
 class IHM_Appel(Tk):
     def __init__(self, utilisateur, correspondant: str)-> None:
-        super().__init__()
-        self.title("Interface Téléphone")
-        self.geometry(f"{LARGEUR_FEN}x{HAUTEUR_FEN}")  # Taille pour simuler un écran de téléphone
-        self.configure(bg="white")  # Fond blanc
+        Tk.__init__(self)
         
+        # Déclaration des attributs
         self.__utilisateur: Utilisateur
+        self.__correspondant: str
+        self.__label_correspondant: Label
+        self.__label_etat_appel: Label
+        self.__label_liste: Label
+        self.__liste_contacts: ttk.Combobox
+        self.__cadre_interactif: Frame
+        self.__bouton_micro: Button
+        self.__bouton_hp: Button
+        self.__bouton_appel: Button
+        
+        # Instanciation des attributs
         self.__utilisateur = utilisateur
+        self.__correspondant = correspondant
+        self.title("Appel VoIP")
+        self.geometry(f"{LARGEUR_FEN}x{HAUTEUR_FEN}") # Taille de fenêtre pour simuler un écran de téléphone
 
         # État de l'appel
-        self.etat_appel = Label(self, text="État de l'appel : Ça sonne", font=("Arial", 12), bg="white")
-        self.etat_appel.pack(pady=10)
+        self.__label_etat_appel = Label(self, text="État de l'appel : Ça sonne", font=("Arial", 12), bg="white")
+        self.__label_etat_appel.pack(pady=10)
 
         # Nom du correspondant
-        self.nom_correspondant = Label(self, text="Nom du correspondant : John Doe", font=("Arial", 12), bg="white")
-        self.nom_correspondant.pack(pady=10)
+        self.__label_correspondant = Label(self, text="Nom du correspondant : John Doe", font=("Arial", 12), bg="white")
+        self.__label_correspondant.pack(pady=10)
 
         # Liste déroulante pour l'annuaire de contacts
-        self.label_liste = Label(self, text="Annuaire de contacts :", font=("Arial", 10), bg="white")
-        self.label_liste.pack()
-        self.liste_contacts = ttk.Combobox(self, values=["John Doe", "Alice", "Bob", "Eve"], font=("Arial", 10)) # TODO a supprimer une fois le nouveau menu réalisé
-        self.liste_contacts.set("Sélectionner un contact")
-        self.liste_contacts.pack(pady=5)
+        self.__label_liste = Label(self, text="Annuaire de contacts :", font=("Arial", 10), bg="white")
+        self.__label_liste.pack()
+        self.__liste_contacts = ttk.Combobox(self, values=["John Doe", "Alice", "Bob", "Eve"], font=("Arial", 10)) # TODO a supprimer une fois le nouveau menu réalisé
+        self.__liste_contacts.set("Sélectionner un contact")
+        self.__liste_contacts.pack(pady=5)
 
         # Partie interactive
-        cadre_interactif = Frame(self, bg="lightgrey", bd=2, relief="ridge")
-        cadre_interactif.pack(pady=20, padx=10, fill="both", expand=True)
+        self.__cadre_interactif = Frame(self, bg="lightgrey", bd=2, relief="ridge")
+        self.__cadre_interactif.pack(pady=20, padx=10, fill="both", expand=True)
 
         # Boutons interactifs (Couper micro, Haut-parleur)
-        self.bouton_micro = Button(
-            cadre_interactif, text=" Couper Micro", font=("Arial", 12), command=self.couper_micro
-        )
-        self.bouton_micro.pack(pady=10)
+        self.__bouton_micro = Button(
+            self.__cadre_interactif, text=" Couper Micro", font=("Arial", 12), command=self.couper_micro)
+        self.__bouton_micro.pack(pady=10)
 
-        self.bouton_hp = Button(
-            cadre_interactif, text=" Haut-parleur", font=("Arial", 12), command=self.activer_hp
-        )
-        self.bouton_hp.pack(pady=10)
+        self.__bouton_hp = Button(
+            self.__cadre_interactif, text=" Haut-parleur", font=("Arial", 12), command=self.activer_hp)
+        self.__bouton_hp.pack(pady=10)
 
         # Bouton d'appel/raccrocher
-        self.bouton_appel = Button(
-            cadre_interactif, text=" Appel/Raccrocher", font=("Arial", 12), bg="lightgreen", command=self.appel
-        )
-        self.bouton_appel.pack(pady=20)
+        self.__bouton_appel = Button(
+            self.__cadre_interactif, text=" Appel/Raccrocher", font=("Arial", 12), bg="lightgreen", command=self.appel)
+        self.__bouton_appel.pack(pady=20)
         
         # Intercepte la fermeture de la fenêtre et appelle la méthode quit
         self.protocol("WM_DELETE_WINDOW", self.quit)
@@ -244,7 +253,7 @@ class IHM_Appel(Tk):
     def quit(self)-> None:
         """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
         """
-        self.__utilisateur.deconnexion() # TODO fonctionne parfaitement sur le HP de Yann, mais pas sur le Asus de Yann
+        self.__utilisateur.deconnexion()
         
         # TODO gestion de la fermeture de la fenêtre de contacts (j'ai pas regardé comment faire)
         self.destroy() 
