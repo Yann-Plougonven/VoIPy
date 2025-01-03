@@ -76,28 +76,32 @@ class IHM_Authentification(Tk):
         login: str
         mdp: str
         ip_serv: str
-        utilisateur: Utilisateur
+        self.__utilisateur: Utilisateur
         
         login = self.__entry_login.get()
         mdp = self.__entry_mdp.get()
         ip_serv = self.__entry_ip_serv.get()
         self.destroy()
         
-        utilisateur = Utilisateur(login, mdp, ip_serv)
+        self.__utilisateur = Utilisateur(login, mdp, ip_serv)
         
     # def quit(self)-> None: # TODO
     #     self.destroy()
 
 
 class IHM_Contacts(Tk):
-    def __init__(self, liste_collaborateurs)-> None:
+    def __init__(self, reponse_serv_contacts: str)-> None:
         Tk.__init__(self)
         
         # déclaration des attributs
-        self.__liste_collaborateurs: list[str] = liste_collaborateurs
+        self.__dict_contacts: dict[str]
         self.__ihm_appel: IHM_Appel
         self.__frame_contacts: Frame
         self.__label_titre: Label
+        self.__label_sous_titre: Label
+        btn_contact: Button
+        btn_actualiser: Button
+        contact: str
         
         # Instanciation des attributs
         self.title("Choix du collaborateur à appeler")
@@ -105,16 +109,35 @@ class IHM_Contacts(Tk):
         
         # Titre principal
         self.__label_titre = Label(self, text="Appeler un collaborateur", font=("Helvetica", 20, "bold"))
-        self.__label_titre.pack(pady=20)
+        self.__label_sous_titre = Label(self, text="Les contacts connectés apparaissent en vert", font=("Helvetica", 12))
+        self.__label_titre.pack(pady=10)
+        self.__label_sous_titre.pack()
+        
+        # Bouton d'actualisation de la liste des contacts TODO
+        
         
         # Frame des contacts
         self.__frame_contacts = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
         self.__frame_contacts.pack(pady=20, fill='x')
         
-        # Boutons des contacts
-        for contact in self.__liste_collaborateurs:
+        # Liste/Boutons des contacts
+        # Supprimer l'entête "CONTACTS LIST" (13 premiers caractères de la chaine)
+        reponse_serv_contacts = reponse_serv_contacts[13:]
+        # Convertir la chaine en dictionnaire de contacts reliés à leur statut (online, offline)
+        self.__dict_contacts = eval(reponse_serv_contacts)
+        print(self.__dict_contacts)
+        
+        # Génération d'un bouton par contact
+        # TODO : si la liste de contact est trop grande, elle n'est pas affichée en entier : ajouter une barre de défilement ?
+        for contact in self.__dict_contacts.keys():          
             btn_contact = Button(self.__frame_contacts, text=contact, font=("Helvetica", 14), command=lambda c=contact: self.appeler_contact(c))
             btn_contact.pack(pady=4, fill=X)
+            
+            if self.__dict_contacts[contact] == "online":
+                btn_contact.configure(bg="PaleGreen1")
+            else:
+                btn_contact.configure(bg="RosyBrown1")
+                btn_contact.configure(state=DISABLED)
         
         # lancer l'IHM
         self.mainloop()
@@ -210,6 +233,7 @@ class Utilisateur:
     
     def authentification(self)-> None:
         reponse_serv: str
+        reponse_serv_contacts: str
         
         print("Tentative d'authentification de l'utilisateur auprès du serveur.")
         self.envoyer_message(f"AUTH REQUEST {self.__login}:{self.__mdp}")
@@ -217,10 +241,22 @@ class Utilisateur:
         print("En attente de la réponse du serveur...")
         reponse_serv = self.recevoir_message()
         
+        # Si l'authentification est réussie, on récupère la liste des contacts et affiche la fenêtre de contacts :
         if reponse_serv.startswith("AUTH ACCEPT"):
             print("Authentification réussie.")
-            self.__ihm_contacts = IHM_Contacts(["John Doe", "Alice", "Bob", "Eve", "aaa", "bbb", "ccc", "ddd", "eee", "fff", "ggg", "hhh", "i", "j", "k", "l", "m", "n"]) # TODO à remplacer par la liste des collaborateurs donnée par le serveur
             
+            print("Tentative de récupération de la liste de contacts...")
+            self.envoyer_message(f"CONTACTS REQUEST")
+            reponse_serv_contacts = self.recevoir_message()
+            
+            if reponse_serv_contacts.startswith("CONTACTS LIST"):
+                print("Ouverture de l'interface de sélection des contacts.")
+                self.__ihm_contacts = IHM_Contacts(reponse_serv_contacts)
+            
+            else: # Si la liste des contacts n'a pas pu être récupérée
+                print("Erreur : la liste des contacts n'a pas pu être récupérée.")
+        
+        # Si l'authentification est refusée :
         else:
             print("L'authentification a échouée : ", reponse_serv)
             # TODO Rappeller une nouvelle IHM d'authentification ?

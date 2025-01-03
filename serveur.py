@@ -54,6 +54,9 @@ class Service_Signalisation:
             
         if msg.startswith("LOGOUT REQUEST"):
             self.deconnecter(ip_client, msg)
+            
+        if msg.startswith("CONTACTS REQUEST"):
+            self.envoyer_liste_contacts(ip_client)
         
         elif msg.startswith("CALL REQUEST"):
             self.appeler(ip_client, msg)
@@ -94,7 +97,11 @@ class Service_Signalisation:
     def deconnecter(self, ip_client:str, msg: str)-> None:
         # TODO vérifier que l'utilisateur est bien authentifié sur cette Ip
         # TODO déconnecter le client (mise la jour de la liste des clients actuellement authentifiés)
-        pass        
+        pass
+    
+    def envoyer_liste_contacts(self, ip_client:str)-> None:
+        # TODO vérifier que l'utilisateur est bien authentifié
+        self.envoyer_signalisation(ip_client, "CONTACTS LIST {'John Doe':'online', 'Alice':'online', 'Bob':'offline', 'Eve':'offline'}")  
             
     def appeler(self, ip_client:str, msg: str)-> None:
         # TODO vérifier que l'utilisateur est bien authentifié
