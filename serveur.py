@@ -97,7 +97,7 @@ class Service_Signalisation:
         
         # Définition du chemin absolu de la base de données (nécessaire, sinon elle ne s'ouvre pas)
         dossier_de_travail = os.path.dirname(os.path.abspath(__file__))
-        chemin_bdd = os.path.join(dossier_de_travail, nom_bdd)
+        chemin_bdd = os.path.join(dossier_de_travail, "bdd", nom_bdd)
                 
         # Connexion à la BDD
         print(f"[{self.heure()}] [INFO] [SQL] {requete}")
