@@ -134,9 +134,6 @@ class IHM_Contacts(Tk):
         
         # Liste/Boutons des contacts
         self.lister_contacts()
-
-        # lancer l'IHM
-        self.mainloop()
     
     def lister_contacts(self)-> None:
         """Initialise ou actualise la liste des contacts.
@@ -144,29 +141,34 @@ class IHM_Contacts(Tk):
         Note : le choix de ne pas passer la liste de contacts en paramètre de la classe IHM_Contacts
         est dû au fait que la liste des contacts peut être actualisée par l'utilisateur
         """
+        # Initialisation des variables/attributs
         str_contacts: str
         contact: str
         widget: Widget
         self.__dict_contacts: dict[str]
         
+        # Arrêt de l'écoute de requête d'appel, si elle est déjà lancée, pour éviter les interférences
+        self.stopper_deamon_ecoute_requetes_appel(180)
+        
+        # Récupérer la liste des contacts
         str_contacts = self.__utilisateur.actualiser_liste_contacts() # obtenir les contacts sous forme de chaine
         str_contacts = str_contacts[13:] # supprimer l'entête "CONTACTS LIST" (13 premiers caractères de la chaine)
         self.__dict_contacts = eval(str_contacts) # convertir la chaine en dicts de contacts liés à leur statut (online, offline)
-                
-        # Supprimer les anciens boutons contacts
+        
+        # Supprimer les anciens boutons de la liste de contacts
         for widget in self.__frame_contacts.winfo_children():
             widget.destroy()
         
         # Ajouter les contacts sous forme de boutons
         for contact in self.__dict_contacts.keys():          
-            btn_contact = Button(self.__frame_contacts, text=contact, font=("Helvetica", 14), command=lambda c=contact: self.appeler_correspondant(c))
+            btn_contact = Button(self.__frame_contacts, text=contact, font=("Helvetica", 14), command=lambda correspondant=contact: self.appeler_correspondant(correspondant))
             btn_contact.pack(pady=4, fill=X)
             
             # Si le contact est en ligne, le bouton est vert.
             if self.__dict_contacts[contact] == "online":
                 btn_contact.configure(bg="PaleGreen1")
 
-                # Si le contact est le client lui même, le bouton est désactivé.
+                # Si le contact est le client lui même, le bouton est désactivé (il ne peut pas s'appeller lui-même)
                 if contact == self.__login_utilisateur:
                     btn_contact.configure(state=DISABLED)
             
@@ -177,50 +179,95 @@ class IHM_Contacts(Tk):
         
         # Ecouter les potentielles requêtes d'appel, 100ms après l'ouverture de la fenêtre.
         # Cela permet de laisser la fenêtre s'ouvrir avant que le client boucle sur l'écoute de requête d'appel.
-        self.after(100, self.demarrer_ecoute) # after() permet d'appeler ecouter_requete_appel après 100ms. 
+        self.after(100, self.demarrer_deamon_ecoute_requetes_appel) # after() permet d'appeler ecouter_requete_appel après 100ms. 
                                                     # TODO jsp si c'est utile ici
-        # lancer l'IHM
+        
+        # lancer l'IHM (Note : même si on dirait que ça ne sert à rien, 
+        # c'est notamment nécessaire pour que la fenêtre se ferme correctement)
         self.mainloop()
         
     def appeler_correspondant(self, correspondant: str)-> None:
-        
         # Arrêt de l'écoute de requête d'appel pour éviter les interférences
-        print(f"Arrêt de l'écoute de requête d'appel...")
-        self.__stop_thread_event.set() # Demande d'arrêt du thread d'écoute de requête d'appel
-        self.__thread_ecoute.join() # Attente de l'arrêt du thread d'écoute de requête d'appel
-        # TODO faire ça propremment avec un setter !! (Yann) :
-        self.__utilisateur.set_timeout_socket_reception(60) # Réinitialisation du timeout du socket de réception
-        
+        self.stopper_deamon_ecoute_requetes_appel(180)
+                
         # Ouverture de l'interface d'appel
         print(f"Ouverture de l'interface d'appel avec {correspondant}...")
         self.destroy() # fermeture de la fenêtre de contacts
-        self.__ihm_appel = IHM_Appel(self.__utilisateur, correspondant, le_client_est_l_appellant=True) # ouverture de l'interface d'appel
+        self.__ihm_appel = IHM_Appel(self.__utilisateur, correspondant, le_client_est_l_appellant=True) # ouverture de l'IHM d'appel
         
     def ecouter_requete_appel(self)-> None:
+        """Ecoute en arrirère-plan des potentielles requêtes d'appel entrantes.
+        L'écoute en arrière-plan a lieu quand le client est connecté n'est pas en appel,
+        c'est-à-dire, quand la fenêtre des contacts est ouvertes.
+        """
+        msg:str
+        correspondant:str
+                
+        # Définir un court timeout de réception pour vérifier régulièrement si le programme demande l'arrêt du thread
+        self.__utilisateur.set_timeout_socket_reception(0.1) 
+        
         print("Écoute en cours de potentielle requête d'appel...")
-        # TODO faire ça propremment avec un setter !! (Yann) :
-        self.__utilisateur.set_timeout_socket_reception(0.1) # Définir un court timeout pour pouvoir vérifier régulièrement si on demande l'arrêt du thread
-        while not self.__stop_thread_event.is_set(): # Tant qu'on ne demande pas l'arrêt du thread d'écoute
+        
+        # Tant qu'on ne demande pas l'arrêt du thread, on écoute les potentielles requêtes d'appel
+        while not self.__stop_thread_event.is_set(): 
             try:
+                msg = self.__utilisateur.recevoir_message()
                 
-                msg:str
-                correspondant:str
-                
-                msg = self.__utilisateur.recevoir_message() # TODO : du coup si on demande d'actualiser la liste des contacts, on reçoit le mauvais paquet et ça plante
-                
+                # Si le message reçu est une requête d'appel, on ouvre l'IHM d'appel et on arrête l'écoute des requêtes d'appel
                 if msg.startswith("CALL REQUEST"):
-                    correspondant = msg[13:] # TODO supprimer l'entête "CALL REQUEST " (13 premiers caractères de la chaine)
+                    correspondant = msg[13:] # supprimer l'entête "CALL REQUEST " du message (13 premiers caractères de la chaine)
                     print(f"Requête d'appel reçue de {correspondant}.")
-                    self.__ihm_appel = IHM_Appel(self.__utilisateur, correspondant, le_client_est_l_appellant=False) # ouverture de l'interface d'appel
+                    self.__stop_thread_event.set() # demander l'arrêt du thread
+                    self.__utilisateur.set_timeout_socket_reception(180) # réinitialiser le timeout du socket de réception
+                    
+                    # Ouvrir l'IHM d'appel avec le correspondant, et détruire la fenêtre des contacts
+                    # Il est nécessaire d'utiliser after() pour détruire l'IHM_contacts 
+                    # en étant dans le bon thread (thread principal), sinon le programme plante.
+                    self.after(0, self.ouvrir_ihm_appel, correspondant) 
             
             except timeout: 
-                continue # Si le timeout est atteint, on recommence la boucle, qui vérifie si on demande l'arrêt du thread
+                continue # Si le timeout est atteint, on recommence la boucle, qui vérifie d'abord si l'arrêt du thread est demandé
                         
-    def demarrer_ecoute(self):
-        self.__thread_ecoute = Thread(target=self.ecouter_requete_appel)
-        self.__thread_ecoute.daemon = True
-        self.__thread_ecoute.start()
-    
+    def demarrer_deamon_ecoute_requetes_appel(self):
+        """Démarre le thread d'écoute de requête d'appel en arrière-plan.
+        """
+        self.__stop_thread_event.clear() # réinitialiser l'événement de demande d'arrêt du thread
+        self.__thread_ecoute = Thread(target=self.ecouter_requete_appel) # création du thread
+        self.__thread_ecoute.daemon = True # configuration du thread en mode deamon
+        self.__thread_ecoute.start() # démarrage du thread
+        
+    def stopper_deamon_ecoute_requetes_appel(self, timeout:float=190)-> None:
+        """Arrêt du thread d'écoute de requête d'appel, s'il est déjà démarré, pour éviter les interférences.
+        Définit un "long" timeout pour le socket de réception de la signalisation (protocole applicatif),
+        étant donné que le timeout est de seulement 100ms pour le deamon d'écoute des requête d'appel.
+        et que la réception de signalisations plus spécifiques peut prendre plus de temps et n'est pas bouclée.
+
+        Args:
+            timeout (float): timeout du socket de réception de la signalisation (180s pour répondre à l'appel, par défaut)
+        """
+        try:
+            if self.__thread_ecoute.is_alive():
+                print(f"Arrêt temporaire de l'écoute des requêtes d'appels")
+                self.__stop_thread_event.set() # Demande d'arrêt du thread d'écoute de requête d'appel
+                self.__thread_ecoute.join() # Attente de l'arrêt du thread d'écoute de requête d'appel
+                self.__utilisateur.set_timeout_socket_reception(timeout) # Définir le timeout passé en paramètre
+
+        except AttributeError: # Si le thread d'écoute n'est pas encore démarré
+            pass
+        
+    def ouvrir_ihm_appel(self, correspondant:str)-> None:
+        """Fermer l'IHM des contacts depuis le thread principal,
+        et ouvrir l'IHM d'appel avec le correspondant.
+        Il est nécessaire d'utiliser le thread principal pour détruire l'IHM des contacts,
+        sinon le programme plante.
+
+        Args:
+            correspondant (str): login du correspondant qui a demandé l'appel
+        """
+        # Fermer l'IHM des contacts depuis le thread principal
+        self.destroy() # fermer l'IHM des contacts
+        # Ouvrir l'IHM d'appel avec le correspondant
+        self.__ihm_appel = IHM_Appel(self.__utilisateur, correspondant, le_client_est_l_appellant=False) # ouvrir l'IHM d'appel
     
     def quit(self)-> None:
         """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
@@ -334,9 +381,11 @@ class IHM_Appel(Tk):
     
     def couper_micro(self):
         print("Micro coupé!")
+        # TODO
 
     def activer_hp(self):
         print("Haut-parleur activé!")
+        # TODO
         
     def decrocher(self):
         autorisation_de_demarrer_appel: bool
@@ -414,7 +463,7 @@ class Utilisateur:
         # Si l'authentification est refusée :
         else:
             print("L'authentification a échouée :", reponse_serv)
-            # TODO Rappeller une nouvelle IHM d'authentification ?
+            # TODO Rappeller une nouvelle IHM d'authentification ou afficher un message d'erreur
             
     def deconnexion(self)-> None:
         print("Information du serveur de notre déconnexion...")
@@ -454,9 +503,6 @@ class Utilisateur:
         self.envoyer_message(f"CALL REQUEST {correspondant}")
         reponse_serv_requete_appel = self.recevoir_message()
         
-        print('ici') # TODO à supprimer
-        print(reponse_serv_requete_appel) # TODO à supprimer
-        
         if reponse_serv_requete_appel.startswith("CALL START"):
             print(f"Le serveur et {correspondant} ont accepté la requête d'appel.")
             requete_appel_acceptee = True
@@ -487,7 +533,7 @@ class Utilisateur:
     def get_login(self)-> str:
         return self.__login
     
-    def set_timeout_socket_reception(self, timeout:float)-> None:
+    def set_timeout_socket_reception(self, timeout:float=180)-> None:
         self.__socket_reception.settimeout(timeout)
 
 
