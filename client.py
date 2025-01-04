@@ -6,6 +6,7 @@
 from pyaudio import *
 from socket import *
 from tkinter import *
+from time import sleep
 from tkinter import ttk # TODO à supprimer quand on aura retiré la liste déroulante de contacts
 
 class IHM_Authentification(Tk):
@@ -171,7 +172,7 @@ class IHM_Contacts(Tk):
     def appeler_correspondant(self, correspondant: str)-> None:
         print(f"Ouverture de l'interface d'appel avec {correspondant}...")
         self.destroy() # fermeture de la fenêtre de contacts
-        self.__ihm_appel = IHM_Appel(self.__utilisateur, correspondant) # ouverture de l'interface d'appel
+        self.__ihm_appel = IHM_Appel(self.__utilisateur, correspondant, le_client_est_l_appellant=True) # ouverture de l'interface d'appel
         
     def quit(self)-> None:
         """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
@@ -184,12 +185,13 @@ class IHM_Contacts(Tk):
 # TODO : faire en sorte que toutes les IMH aient la même charte graphique, et supprimer les éléments inutiles 
 # de IHM_Appel (certainement la liste déroulante de contacts)
 class IHM_Appel(Tk):
-    def __init__(self, utilisateur, correspondant: str)-> None:
+    def __init__(self, utilisateur, correspondant: str, le_client_est_l_appellant:bool)-> None:
         Tk.__init__(self)
         
         # Déclaration des attributs
         self.__utilisateur: Utilisateur
         self.__correspondant: str
+        self.__le_client_est_l_appellant: bool
         self.__label_correspondant: Label
         self.__label_etat_appel: Label
         self.__label_liste: Label
@@ -197,11 +199,13 @@ class IHM_Appel(Tk):
         self.__cadre_interactif: Frame
         self.__bouton_micro: Button
         self.__bouton_hp: Button
-        self.__bouton_appel: Button
+        self.__bouton_decrocher: Button
+        self.__bouton_racrocher: Button
         
         # Instanciation des attributs
         self.__utilisateur = utilisateur
         self.__correspondant = correspondant
+        self.__le_client_est_l_appellant = le_client_est_l_appellant
         self.title("Appel VoIP")
         self.geometry(f"{LARGEUR_FEN}x{HAUTEUR_FEN}") # Taille de fenêtre pour simuler un écran de téléphone
 
@@ -210,7 +214,7 @@ class IHM_Appel(Tk):
         self.__label_etat_appel.pack(pady=10)
 
         # Nom du correspondant
-        self.__label_correspondant = Label(self, text="Nom du correspondant : John Doe", font=("Arial", 12), bg="white")
+        self.__label_correspondant = Label(self, text=f"Correspondant : {self.__correspondant}", font=("Arial", 12), bg="white")
         self.__label_correspondant.pack(pady=10)
 
         # Liste déroulante pour l'annuaire de contacts
@@ -227,20 +231,45 @@ class IHM_Appel(Tk):
         # Boutons interactifs (Couper micro, Haut-parleur)
         self.__bouton_micro = Button(
             self.__cadre_interactif, text=" Couper Micro", font=("Arial", 12), command=self.couper_micro)
-        self.__bouton_micro.pack(pady=10)
+        self.__bouton_micro.grid(row=0, column=0, pady=10)
 
         self.__bouton_hp = Button(
             self.__cadre_interactif, text=" Haut-parleur", font=("Arial", 12), command=self.activer_hp)
-        self.__bouton_hp.pack(pady=10)
+        self.__bouton_hp.grid(row=0, column=1, pady=10)
 
-        # Bouton d'appel/raccrocher
-        self.__bouton_appel = Button(
-            self.__cadre_interactif, text=" Appel/Raccrocher", font=("Arial", 12), bg="lightgreen", command=self.appel)
-        self.__bouton_appel.pack(pady=20)
+        # Bouton pour décrocher TODO ne doit pas être visible si l'appel est en cours
+        self.__bouton_decrocher = Button(
+            self.__cadre_interactif, text="Décrocher", font=("Arial", 12), bg="PaleGreen1", command=self.appel)
+        self.__bouton_decrocher.grid(row=2, column=0, pady=10)
+        
+        # Bouton pour raccrocher
+        self.__bouton_raccrocher = Button(
+            self.__cadre_interactif, text="Racrocher", font=("Arial", 12), bg="RosyBrown1", command=self.appel)
+        self.__bouton_raccrocher.grid(row=2, column=1, pady=10)
         
         # Intercepte la fermeture de la fenêtre et appelle la méthode quit
         self.protocol("WM_DELETE_WINDOW", self.quit)
+        
+        # Envoyer une requête d'appel au serveur si le client est l'appellant
+        if self.__le_client_est_l_appellant:
+            self.envoyer_requete_appel()
 
+    def envoyer_requete_appel(self)-> None:
+        requete_appel_acceptee: bool
+        requete_appel_acceptee = self.__utilisateur.envoyer_requete_appel(self.__correspondant)
+        
+        # Si l'appel est accepté
+        if requete_appel_acceptee == True:
+            self.__label_etat_appel.configure(text="Appel en cours", bg="PaleGreen1")
+            # Cacher le bouton "Décrocher", (+ afficher le bouton "Racrocher" si on l'a caché avant ?)
+        
+        # Si l'appel est refusé
+        else: 
+            self.__label_etat_appel.configure(text="Appel refusé", bg="RosyBrown1")
+            sleep(3) # attendre 3 secondes pour que l'utilisateur puisse lire le message
+            self.destroy() # fermeture de la fenêtre d'appel
+            # TODO rouvrir la fenêtre de contacts
+    
     def couper_micro(self):
         print("Micro coupé!")
 
@@ -337,6 +366,25 @@ class Utilisateur:
                 print("Erreur : la liste des contacts n'a pas pu être récupérée.")
         
         return reponse_serv_contacts
+    
+    def envoyer_requete_appel(self, correspondant:str)-> bool:
+        reponse_serv_requete_appel:str
+        requete_appel_acceptee:bool
+        requete_appel_acceptee = False
+        
+        print(f"Envoi de la requête d'appel pour {correspondant} au serveur...")
+        self.envoyer_message(f"CALL REQUEST {correspondant}")
+        reponse_serv_requete_appel = self.recevoir_message()
+        
+        if reponse_serv_requete_appel.startswith("CALL START"):
+            print(f"Le serveur et {correspondant} ont accepté la requête d'appel.")
+            requete_appel_acceptee = True
+        
+        return requete_appel_acceptee
+        
+    def appel_en_cours(self)-> None:
+        print("L'appel est en cours...")
+        # TODO gros travail ici, recevoir et envoyer les paquets de conversation audio
     
     def get_login(self)-> str:
         return self.__login
