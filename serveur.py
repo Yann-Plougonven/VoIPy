@@ -200,30 +200,31 @@ class Service_Signalisation:
             self.envoyer_signalisation(ip_client, f"CONTACTS LIST {dict_contacts}")  
             
     def requete_appel(self, ip_appelant:str, msg: str)-> None:
-        requete_bdd: str
+        requete: str
         login_appelant: str
         login_appele: str
         ip_appele: str
         
         # Récupération du login de l'utilisateur appelant et vérifier si l'IP de l'appellant est authentifié
-        requete_bdd = f"SELECT login FROM utilisateurs WHERE ip = '{ip_appelant}' AND online = 1;"
-        login_appelant = self.requete_BDD(requete_bdd)
+        requete = f"SELECT login FROM utilisateurs WHERE ip = '{ip_appelant}' AND online = 1;"
+        login_appelant = self.requete_BDD(requete)[0][0] # (TODO simplfier ?) Récupération du login de l'appellant dans la liste retournée par la BDD
+                
         if login_appelant: # Si un appelant est bien authentifié sur l'IP du client solicitant le serveur
             # TODO vérifier si l'utilisateur appelé n'est pas déjà appellé par quelqu'un d'autre (à part si on fait de la conférence ?)
             # TODO vérifier que plusieurs utilisateurs peuvent appeler en même temps (2 appels en parallèle)
 
             # Récupération du login de l'utilisateur appelé
-            login_appele = msg[12:] # suppression de l'entête "CALL REQUEST" (12 caractères) du message reçu
-            
+            login_appele = msg[13:] # suppression de l'entête "CALL REQUEST " (13 caractères) du message reçu
+                        
             # Récupération de l'IP de l'utilisateur appelé
-            requete_bdd = f"SELECT ip FROM utilisateurs WHERE login = '{login_appele}';"
-            ip_appele = self.requete_BDD(requete_bdd)
-            
+            requete = f"SELECT ip FROM utilisateurs WHERE login = '{login_appele}';"
+            ip_appele = self.requete_BDD(requete)[0][0]
+                        
             # Envoi de la demande d'appel à l'utilisateur appelé
             self.envoyer_signalisation(ip_appele, f"CALL REQUEST {login_appelant}")
             
             # Fin de la fonction d'envoi de la requête d'appel,
-            # la réponse sera traitée dans traiter_signalisation() puis lancer_appel(),
+            # la réponse "CALL ACCEPT" ou "CALL DENY" sera traitée dans traiter_signalisation() puis lancer_appel(),
             # Afin de ne pas bloquer le fonctionnement du serveur en attendant la réponse de l'appelé.
         
         else: # Si l'IP de l'appellant n'est pas authentifié
@@ -245,7 +246,7 @@ class Service_Signalisation:
         
         # Récupération de l'IP de l'utilisateur appelant
         requete_bdd = f"SELECT ip FROM utilisateurs WHERE login = '{login_appelant}';"
-        ip_appelant = self.requete_BDD(requete_bdd)
+        ip_appelant = self.requete_BDD(requete_bdd)[0][0]
         
         # TODO lancer l'appel côté serveur (transfert de la voix)
         
