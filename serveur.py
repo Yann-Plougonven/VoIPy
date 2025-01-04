@@ -7,6 +7,7 @@ from pyaudio import *
 from socket import *
 import sqlite3
 from datetime import datetime
+from time import sleep # TODO à supprimer si plus utilisé
 import os.path
 
 class Service_Signalisation:
@@ -198,16 +199,59 @@ class Service_Signalisation:
                         
             self.envoyer_signalisation(ip_client, f"CONTACTS LIST {dict_contacts}")  
             
-    def requete_appel(self, ip_client:str, msg: str)-> None:
-        # TODO vérifier que l'utilisateur est bien authentifié
-        # TODO vérifier si l'utilisateur appelé n'est pas déjà appellé par quelqu'un d'autre (à part si on fait de la conférence ?)
-        # TODO vérifier que plusieurs utilisateurs peuvent appeler en même temps (2 appels en parallèle)
-        pass
-    
-    
-    def lancer_appel(self, ip_client:str, msg: str)-> None:
-        # TODO vérifier que l'utilisateur est bien authentifié
-        pass
+    def requete_appel(self, ip_appelant:str, msg: str)-> None:
+        requete_bdd: str
+        login_appelant: str
+        login_appele: str
+        ip_appele: str
+        
+        # Récupération du login de l'utilisateur appelant et vérifier si l'IP de l'appellant est authentifié
+        requete_bdd = f"SELECT login FROM utilisateurs WHERE ip = '{ip_appelant}' AND online = 1;"
+        login_appelant = self.requete_BDD(requete_bdd)
+        if login_appelant: # Si un appelant est bien authentifié sur l'IP du client solicitant le serveur
+            # TODO vérifier si l'utilisateur appelé n'est pas déjà appellé par quelqu'un d'autre (à part si on fait de la conférence ?)
+            # TODO vérifier que plusieurs utilisateurs peuvent appeler en même temps (2 appels en parallèle)
+
+            # Récupération du login de l'utilisateur appelé
+            login_appele = msg[12:] # suppression de l'entête "CALL REQUEST" (12 caractères) du message reçu
+            
+            # Récupération de l'IP de l'utilisateur appelé
+            requete_bdd = f"SELECT ip FROM utilisateurs WHERE login = '{login_appele}';"
+            ip_appele = self.requete_BDD(requete_bdd)
+            
+            # Envoi de la demande d'appel à l'utilisateur appelé
+            self.envoyer_signalisation(ip_appele, f"CALL REQUEST {login_appelant}")
+            
+            # Fin de la fonction d'envoi de la requête d'appel,
+            # la réponse sera traitée dans traiter_signalisation() puis lancer_appel(),
+            # Afin de ne pas bloquer le fonctionnement du serveur en attendant la réponse de l'appelé.
+        
+        else: # Si l'IP de l'appellant n'est pas authentifié
+            # self.envoyer_signalisation(ip_appelant, "CALL REJECT") ?
+            pass
+
+    def lancer_appel(self, ip_appele:str, msg: str)-> None:
+        # Le message reçu est de la forme "CALL ACCEPT login_appelant-login_appele_acceptant_l_appel"
+        # TODO vérifier que les utilisateurs sont bien authentifiés ?
+        login_appelant: str
+        ip_appelant: str
+        login_appele: str
+        
+        # Isolement des logins des deux utilisateurs de l'en-tête "CALL ACCEPT " (12 caractères) du message
+        msg = msg[12:]
+        
+        # Récupération du login de l'utilisateur appelant, et du login de l'utilisateur appelé qui a accepté l'appel
+        login_appelant, login_appele = msg.split("-")
+        
+        # Récupération de l'IP de l'utilisateur appelant
+        requete_bdd = f"SELECT ip FROM utilisateurs WHERE login = '{login_appelant}';"
+        ip_appelant = self.requete_BDD(requete_bdd)
+        
+        # TODO lancer l'appel côté serveur (transfert de la voix)
+        
+        # Informer les deux utilisateurs que l'appel est en cours
+        self.envoyer_signalisation(ip_appelant, f"CALL START {login_appele}")
+        self.envoyer_signalisation(ip_appele, f"CALL START {login_appelant}")
     
     
     def rejeter_appel(self, ip_client:str, msg: str)-> None:
