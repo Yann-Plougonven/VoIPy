@@ -250,9 +250,14 @@ class IHM_Appel(Tk):
         # Intercepte la fermeture de la fenêtre et appelle la méthode quit
         self.protocol("WM_DELETE_WINDOW", self.quit)
         
-        # Envoyer une requête d'appel au serveur si le client est l'appellant
+        # Envoyer une requête d'appel au serveur si le client est l'appellant, 100ms après l'ouverture de la fenêtre.
+        # Cela permet de laisser la fenêtre s'ouvrir avant que le correspondant décroche.
         if self.__le_client_est_l_appellant:
-            self.envoyer_requete_appel()
+            self.after(100, self.envoyer_requete_appel) # after() permet d'appeler envoyer_requete_appel après 100ms.
+
+        # lancer l'IHM
+        self.mainloop()
+
 
     def envoyer_requete_appel(self)-> None:
         requete_appel_acceptee: bool
