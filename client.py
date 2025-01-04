@@ -6,6 +6,7 @@
 from pyaudio import *
 from socket import *
 from tkinter import *
+from threading import *
 from time import sleep
 from tkinter import ttk # TODO à supprimer quand on aura retiré la liste déroulante de contacts
 
@@ -98,6 +99,10 @@ class IHM_Contacts(Tk):
         self.__utilisateur: Utilisateur
         self.__login_utilisateur: str
         self.__ihm_appel: IHM_Appel
+        
+        self.__stop_thread_event: Event
+        self.__thread_ecoute: Thread
+        
         self.__frame_contacts: Frame
         self.__label_titre: Label
         self.__label_sous_titre: Label
@@ -108,6 +113,7 @@ class IHM_Contacts(Tk):
         self.geometry(f"{LARGEUR_FEN}x{HAUTEUR_FEN}")
         self.__utilisateur = utilisateur
         self.__login_utilisateur = self.__utilisateur.get_login()
+        self.__stop_thread_event = Event()
         
         # Titre principal
         self.__label_titre = Label(self, text="Appeler un collaborateur", font=("Helvetica", 20, "bold"))
@@ -169,11 +175,53 @@ class IHM_Contacts(Tk):
                 btn_contact.configure(bg="RosyBrown1")
                 btn_contact.configure(state=DISABLED)
         
+        # Ecouter les potentielles requêtes d'appel, 100ms après l'ouverture de la fenêtre.
+        # Cela permet de laisser la fenêtre s'ouvrir avant que le client boucle sur l'écoute de requête d'appel.
+        self.after(100, self.demarrer_ecoute) # after() permet d'appeler ecouter_requete_appel après 100ms. 
+                                                    # TODO jsp si c'est utile ici
+        # lancer l'IHM
+        self.mainloop()
+        
     def appeler_correspondant(self, correspondant: str)-> None:
+        
+        # Arrêt de l'écoute de requête d'appel pour éviter les interférences
+        print(f"Arrêt de l'écoute de requête d'appel...")
+        self.__stop_thread_event.set() # Demande d'arrêt du thread d'écoute de requête d'appel
+        self.__thread_ecoute.join() # Attente de l'arrêt du thread d'écoute de requête d'appel
+        # TODO faire ça propremment avec un setter !! (Yann) :
+        self.__utilisateur.set_timeout_socket_reception(60) # Réinitialisation du timeout du socket de réception
+        
+        # Ouverture de l'interface d'appel
         print(f"Ouverture de l'interface d'appel avec {correspondant}...")
         self.destroy() # fermeture de la fenêtre de contacts
         self.__ihm_appel = IHM_Appel(self.__utilisateur, correspondant, le_client_est_l_appellant=True) # ouverture de l'interface d'appel
         
+    def ecouter_requete_appel(self)-> None:
+        print("Écoute en cours de potentielle requête d'appel...")
+        # TODO faire ça propremment avec un setter !! (Yann) :
+        self.__utilisateur.set_timeout_socket_reception(0.1) # Définir un court timeout pour pouvoir vérifier régulièrement si on demande l'arrêt du thread
+        while not self.__stop_thread_event.is_set(): # Tant qu'on ne demande pas l'arrêt du thread d'écoute
+            try:
+                
+                msg:str
+                correspondant:str
+                
+                msg = self.__utilisateur.recevoir_message() # TODO : du coup si on demande d'actualiser la liste des contacts, on reçoit le mauvais paquet et ça plante
+                
+                if msg.startswith("CALL REQUEST"):
+                    correspondant = msg[13:] # TODO supprimer l'entête "CALL REQUEST " (13 premiers caractères de la chaine)
+                    print(f"Requête d'appel reçue de {correspondant}.")
+                    self.__ihm_appel = IHM_Appel(self.__utilisateur, correspondant, le_client_est_l_appellant=False) # ouverture de l'interface d'appel
+            
+            except timeout: 
+                continue # Si le timeout est atteint, on recommence la boucle, qui vérifie si on demande l'arrêt du thread
+                        
+    def demarrer_ecoute(self):
+        self.__thread_ecoute = Thread(target=self.ecouter_requete_appel)
+        self.__thread_ecoute.daemon = True
+        self.__thread_ecoute.start()
+    
+    
     def quit(self)-> None:
         """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
         """
@@ -190,6 +238,7 @@ class IHM_Appel(Tk):
         
         # Déclaration des attributs
         self.__utilisateur: Utilisateur
+        self.__login_utilisateur: str
         self.__correspondant: str
         self.__le_client_est_l_appellant: bool
         self.__label_correspondant: Label
@@ -204,6 +253,7 @@ class IHM_Appel(Tk):
         
         # Instanciation des attributs
         self.__utilisateur = utilisateur
+        self.__login_utilisateur = self.__utilisateur.get_login()
         self.__correspondant = correspondant
         self.__le_client_est_l_appellant = le_client_est_l_appellant
         self.title("Appel VoIP")
@@ -239,13 +289,14 @@ class IHM_Appel(Tk):
 
         # Bouton pour décrocher TODO ne doit pas être visible si l'appel est en cours
         self.__bouton_decrocher = Button(
-            self.__cadre_interactif, text="Décrocher", font=("Arial", 12), bg="PaleGreen1", command=self.appel)
+            self.__cadre_interactif, text="Décrocher", font=("Arial", 12), bg="PaleGreen1", command=self.decrocher)
         self.__bouton_decrocher.grid(row=2, column=0, pady=10)
         
         # Bouton pour raccrocher
         self.__bouton_raccrocher = Button(
-            self.__cadre_interactif, text="Racrocher", font=("Arial", 12), bg="RosyBrown1", command=self.appel)
+            self.__cadre_interactif, text="Racrocher", font=("Arial", 12), bg="RosyBrown1", command=self.raccrocher)
         self.__bouton_raccrocher.grid(row=2, column=1, pady=10)
+        self.__bouton_decrocher.configure(state=DISABLED) # Désactiver le bouton "Décrocher" (il est réactivé si le client est appellé)
         
         # Intercepte la fermeture de la fenêtre et appelle la méthode quit
         self.protocol("WM_DELETE_WINDOW", self.quit)
@@ -254,7 +305,11 @@ class IHM_Appel(Tk):
         # Cela permet de laisser la fenêtre s'ouvrir avant que le correspondant décroche.
         if self.__le_client_est_l_appellant:
             self.after(100, self.envoyer_requete_appel) # after() permet d'appeler envoyer_requete_appel après 100ms.
-
+        
+        # Si le client est appellé, activer le bouton "Décrocher"
+        else:
+            self.__bouton_decrocher.configure(state=NORMAL)
+            
         # lancer l'IHM
         self.mainloop()
 
@@ -264,9 +319,11 @@ class IHM_Appel(Tk):
         requete_appel_acceptee = self.__utilisateur.envoyer_requete_appel(self.__correspondant)
         
         # Si l'appel est accepté
-        if requete_appel_acceptee == True:
+        if requete_appel_acceptee:
+            # TODO : c'est la même chose que dans la méthode "décrocher" : à factoriser
+            self.__bouton_decrocher.configure(state=DISABLED) # Désactiver le bouton "Décrocher"
             self.__label_etat_appel.configure(text="Appel en cours", bg="PaleGreen1")
-            # Cacher le bouton "Décrocher", (+ afficher le bouton "Racrocher" si on l'a caché avant ?)
+            self.__utilisateur.demarrer_appel()
         
         # Si l'appel est refusé
         else: 
@@ -280,10 +337,26 @@ class IHM_Appel(Tk):
 
     def activer_hp(self):
         print("Haut-parleur activé!")
-
-    def appel(self):
-        print("Appel lancé ou raccroché!")
         
+    def decrocher(self):
+        autorisation_de_demarrer_appel: bool
+        autorisation_de_demarrer_appel = False # Interdit avant la réception du "CALL START" du serveur
+        
+        print("Vous avez décroché l'appel.")
+        self.__label_etat_appel.configure(text="Acceptation de l'appel...", bg="white")
+        
+        autorisation_de_demarrer_appel = self.__utilisateur.accepter_appel(self.__correspondant, self.__login_utilisateur)
+        
+        if autorisation_de_demarrer_appel:
+            # TODO : c'est la même chose que dans la méthode "envoyer_requete_appel" : à factoriser
+            self.__bouton_decrocher.configure(state=DISABLED) # Désactiver le bouton "Décrocher"
+            self.__label_etat_appel.configure(text="Appel en cours", bg="PaleGreen1")
+            self.__utilisateur.demarrer_appel()
+        
+    def raccrocher(self):
+        print("Vous avez raccroché l'appel.")
+        # TODO à faire
+
     def quit(self)-> None:
         """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
         """
@@ -381,18 +454,41 @@ class Utilisateur:
         self.envoyer_message(f"CALL REQUEST {correspondant}")
         reponse_serv_requete_appel = self.recevoir_message()
         
+        print('ici') # TODO à supprimer
+        print(reponse_serv_requete_appel) # TODO à supprimer
+        
         if reponse_serv_requete_appel.startswith("CALL START"):
             print(f"Le serveur et {correspondant} ont accepté la requête d'appel.")
             requete_appel_acceptee = True
         
         return requete_appel_acceptee
+    
+    def accepter_appel(self, login_correspondant, login_utilisateur)-> bool:
+        autorisation_de_demarrer_appel: bool
+        autorisation_de_demarrer_appel = False # Interdit avant la réception du "CALL ACCEPT" du serveur
+        reponse_serv_requete_demarrer_appel = str # Réponse "CALL ACCEPT" du serveur
         
-    def appel_en_cours(self)-> None:
+        print(f"Envoi de l'acceptation de l'appel avec {login_correspondant} au serveur...")
+        # Le message à envoyer est de la forme "CALL ACCEPT login_appelant-login_appele_acceptant_l_appel"
+        self.envoyer_message(f"CALL ACCEPT {login_correspondant}-{login_utilisateur}") 
+        
+        reponse_serv_requete_demarrer_appel = self.recevoir_message() # Attendre le "CALL ACCEPT" du serveur
+        
+        if reponse_serv_requete_demarrer_appel.startswith("CALL START"):
+            print(f"Le serveur a accepté le démarrage de l'appel avec {login_correspondant}.")
+            autorisation_de_demarrer_appel = True
+        
+        return autorisation_de_demarrer_appel
+        
+    def demarrer_appel(self)-> None:
         print("L'appel est en cours...")
         # TODO gros travail ici, recevoir et envoyer les paquets de conversation audio
     
     def get_login(self)-> str:
         return self.__login
+    
+    def set_timeout_socket_reception(self, timeout:float)-> None:
+        self.__socket_reception.settimeout(timeout)
 
 
 if __name__ == "__main__":
