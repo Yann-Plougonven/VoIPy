@@ -59,7 +59,7 @@ class Service_Signalisation:
             self.envoyer_liste_contacts(ip_client)
         
         elif msg.startswith("CALL REQUEST"):
-            self.appeler(ip_client, msg)
+            self.requete_appel(ip_client, msg)
             
         elif msg.startswith("CALL ACCEPT"):
             self.lancer_appel(ip_client, msg)
@@ -198,8 +198,10 @@ class Service_Signalisation:
                         
             self.envoyer_signalisation(ip_client, f"CONTACTS LIST {dict_contacts}")  
             
-    def appeler(self, ip_client:str, msg: str)-> None:
+    def requete_appel(self, ip_client:str, msg: str)-> None:
         # TODO vérifier que l'utilisateur est bien authentifié
+        # TODO vérifier si l'utilisateur appelé n'est pas déjà appellé par quelqu'un d'autre (à part si on fait de la conférence ?)
+        # TODO vérifier que plusieurs utilisateurs peuvent appeler en même temps (2 appels en parallèle)
         pass
     
     
