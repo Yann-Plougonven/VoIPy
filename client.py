@@ -68,7 +68,9 @@ class IHM_Authentification(Tk):
         # intercepte la fermeture de la fenêtre et appellera la méthode quit TODO sur les 3 IHM
         # self.protocol("WM_DELETE_WINDOW", self.quit)
         
-        # TODO : ajouter le support de l'appui sur la touche "Entrée" pour valider l'authentification
+        # Ajouter le support de l'appui sur la touche "Entrée" pour valider l'authentification
+        self.bind("<Return>", lambda event: self.creer_utilisateur())
+        self.bind("<KP_Enter>", lambda event: self.creer_utilisateur())
         
         # lancer l'IHM
         self.mainloop()
@@ -360,25 +362,43 @@ class IHM_Appel(Tk):
         # lancer l'IHM
         self.mainloop()
 
-
     def envoyer_requete_appel(self)-> None:
-        requete_appel_acceptee: bool
-        requete_appel_acceptee = self.__utilisateur.envoyer_requete_appel(self.__correspondant)
+        autorisation_de_demarrer_l_appel: bool
+        port_voix_client_vers_serv: int
+                
+        autorisation_de_demarrer_l_appel, port_voix_client_vers_serv = self.__utilisateur.envoyer_requete_appel(self.__correspondant)
         
+        self.demarrer_appel(autorisation_de_demarrer_l_appel, port_voix_client_vers_serv)
+
+     
+    def decrocher(self)-> None:
+        autorisation_de_demarrer_l_appel: bool
+        port_voix_client_vers_serv: int
+
+        self.__label_etat_appel.configure(text="Acceptation de l'appel...", bg="white")
+        autorisation_de_demarrer_l_appel, port_voix_client_vers_serv = self.__utilisateur.decrocher(self.__correspondant, self.__login_utilisateur)
+        
+        self.demarrer_appel(autorisation_de_demarrer_l_appel, port_voix_client_vers_serv)
+
+   
+    def demarrer_appel(self, autorisation_de_demarrer_l_appel:bool, port_voix_client_vers_serv:int)-> None:
         # Si l'appel est accepté
-        if requete_appel_acceptee:
-            # TODO : c'est la même chose que dans la méthode "décrocher" : à factoriser
+        if autorisation_de_demarrer_l_appel:
             self.__bouton_decrocher.configure(state=DISABLED) # Désactiver le bouton "Décrocher"
             self.__label_etat_appel.configure(text="Appel en cours", bg="PaleGreen1")
-            self.__utilisateur.demarrer_appel()
+            self.__utilisateur.demarrer_appel(port_voix_client_vers_serv)
         
-        # Si l'appel est refusé
+        # Si l'appel est refusé (possible uniquement dans le cas où c'est l'appellant qui appelle cette fonction)
         else: 
             self.__label_etat_appel.configure(text="Appel refusé", bg="RosyBrown1")
             sleep(3) # attendre 3 secondes pour que l'utilisateur puisse lire le message
             self.destroy() # fermeture de la fenêtre d'appel
             # TODO rouvrir la fenêtre de contacts
-    
+        
+    def raccrocher(self):
+        print("Vous avez raccroché l'appel.")
+        # TODO à faire
+
     def couper_micro(self):
         print("Micro coupé!")
         # TODO
@@ -386,25 +406,6 @@ class IHM_Appel(Tk):
     def activer_hp(self):
         print("Haut-parleur activé!")
         # TODO
-        
-    def decrocher(self):
-        autorisation_de_demarrer_appel: bool
-        autorisation_de_demarrer_appel = False # Interdit avant la réception du "CALL START" du serveur
-        
-        print("Vous avez décroché l'appel.")
-        self.__label_etat_appel.configure(text="Acceptation de l'appel...", bg="white")
-        
-        autorisation_de_demarrer_appel = self.__utilisateur.accepter_appel(self.__correspondant, self.__login_utilisateur)
-        
-        if autorisation_de_demarrer_appel:
-            # TODO : c'est la même chose que dans la méthode "envoyer_requete_appel" : à factoriser
-            self.__bouton_decrocher.configure(state=DISABLED) # Désactiver le bouton "Décrocher"
-            self.__label_etat_appel.configure(text="Appel en cours", bg="PaleGreen1")
-            self.__utilisateur.demarrer_appel()
-        
-    def raccrocher(self):
-        print("Vous avez raccroché l'appel.")
-        # TODO à faire
 
     def quit(self)-> None:
         """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
@@ -494,39 +495,48 @@ class Utilisateur:
         
         return reponse_serv_contacts
     
-    def envoyer_requete_appel(self, correspondant:str)-> bool:
-        reponse_serv_requete_appel:str
-        requete_appel_acceptee:bool
-        requete_appel_acceptee = False
+    def envoyer_requete_appel(self, correspondant:str)-> tuple[bool, int]:
+        reponse_serv_requete_demarrer_appel:str
+        port_voix_client_vers_serv:int
+        autorisation_de_demarrer_appel:bool
+        autorisation_de_demarrer_appel = False
         
         print(f"Envoi de la requête d'appel pour {correspondant} au serveur...")
         self.envoyer_message(f"CALL REQUEST {correspondant}")
-        reponse_serv_requete_appel = self.recevoir_message()
+        # Le message envoyé est de la forme "CALL REQUEST login_correspondant"
         
-        if reponse_serv_requete_appel.startswith("CALL START"):
+        reponse_serv_requete_demarrer_appel = self.recevoir_message()
+        
+        if reponse_serv_requete_demarrer_appel.startswith("CALL START"):
             print(f"Le serveur et {correspondant} ont accepté la requête d'appel.")
-            requete_appel_acceptee = True
+            autorisation_de_demarrer_appel = True
+            # Récupérer le port de communication audio client vers serveur (différent selon le client) :
+            port_voix_client_vers_serv = int(reponse_serv_requete_demarrer_appel[11:])
         
-        return requete_appel_acceptee
+        return autorisation_de_demarrer_appel, port_voix_client_vers_serv
     
-    def accepter_appel(self, login_correspondant, login_utilisateur)-> bool:
+    def decrocher(self, login_correspondant, login_utilisateur)-> tuple[bool, int]:
+        reponse_serv_requete_demarrer_appel = str
+        port_voix_client_vers_serv: int
         autorisation_de_demarrer_appel: bool
-        autorisation_de_demarrer_appel = False # Interdit avant la réception du "CALL ACCEPT" du serveur
-        reponse_serv_requete_demarrer_appel = str # Réponse "CALL ACCEPT" du serveur
+        autorisation_de_demarrer_appel = False
         
         print(f"Envoi de l'acceptation de l'appel avec {login_correspondant} au serveur...")
-        # Le message à envoyer est de la forme "CALL ACCEPT login_appelant-login_appele_acceptant_l_appel"
         self.envoyer_message(f"CALL ACCEPT {login_correspondant}-{login_utilisateur}") 
+        # Le message envoyé est de la forme "CALL ACCEPT login_appelant-login_appele_acceptant_l_appel"
         
         reponse_serv_requete_demarrer_appel = self.recevoir_message() # Attendre le "CALL ACCEPT" du serveur
         
         if reponse_serv_requete_demarrer_appel.startswith("CALL START"):
             print(f"Le serveur a accepté le démarrage de l'appel avec {login_correspondant}.")
             autorisation_de_demarrer_appel = True
+            # Récupérer le port de communication audio client vers serveur (différent selon le client) :
+            port_voix_client_vers_serv = int(reponse_serv_requete_demarrer_appel[11:])
         
-        return autorisation_de_demarrer_appel
+        return autorisation_de_demarrer_appel, port_voix_client_vers_serv
         
-    def demarrer_appel(self)-> None:
+    def demarrer_appel(self, port_voix_client_vers_serv)-> None:
+        print(f"Le serveur a accepté le démarrage de l'appel et demande de recevoir les paquets audio sur le port {port_voix_client_vers_serv}.")
         print("L'appel est en cours...")
         # TODO gros travail ici, recevoir et envoyer les paquets de conversation audio
     

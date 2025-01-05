@@ -251,8 +251,8 @@ class Service_Signalisation:
         # TODO lancer l'appel côté serveur (transfert de la voix)
         
         # Informer les deux utilisateurs que l'appel est en cours
-        self.envoyer_signalisation(ip_appelant, f"CALL START {login_appele}")
-        self.envoyer_signalisation(ip_appele, f"CALL START {login_appelant}")
+        self.envoyer_signalisation(ip_appelant, f"CALL START 6001")
+        self.envoyer_signalisation(ip_appele, f"CALL START 6002")
     
     
     def rejeter_appel(self, ip_client:str, msg: str)-> None:
