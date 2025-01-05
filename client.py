@@ -364,29 +364,31 @@ class IHM_Appel(Tk):
 
     def envoyer_requete_appel(self)-> None:
         autorisation_de_demarrer_l_appel: bool
-        port_voix_client_vers_serv: int
+        port_reception_voix_du_serveur: int
                 
-        autorisation_de_demarrer_l_appel, port_voix_client_vers_serv = self.__utilisateur.envoyer_requete_appel(self.__correspondant)
+        autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur = self.__utilisateur.envoyer_requete_appel(self.__correspondant)
         
-        self.demarrer_appel(autorisation_de_demarrer_l_appel, port_voix_client_vers_serv)
+        self.demarrer_appel(autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur)
 
      
     def decrocher(self)-> None:
         autorisation_de_demarrer_l_appel: bool
-        port_voix_client_vers_serv: int
+        port_reception_voix_du_serveur: int
 
         self.__label_etat_appel.configure(text="Acceptation de l'appel...", bg="white")
-        autorisation_de_demarrer_l_appel, port_voix_client_vers_serv = self.__utilisateur.decrocher(self.__correspondant, self.__login_utilisateur)
+        autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur = self.__utilisateur.decrocher(self.__correspondant, self.__login_utilisateur)
         
-        self.demarrer_appel(autorisation_de_demarrer_l_appel, port_voix_client_vers_serv)
+        self.demarrer_appel(autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur)
 
    
-    def demarrer_appel(self, autorisation_de_demarrer_l_appel:bool, port_voix_client_vers_serv:int)-> None:
+    def demarrer_appel(self, autorisation_de_demarrer_l_appel:bool, port_reception_voix_du_serveur:int)-> None:
         # Si l'appel est accepté
         if autorisation_de_demarrer_l_appel:
             self.__bouton_decrocher.configure(state=DISABLED) # Désactiver le bouton "Décrocher"
+            print("TESTTESTTESTTODO")
             self.__label_etat_appel.configure(text="Appel en cours", bg="PaleGreen1")
-            self.__utilisateur.demarrer_appel(port_voix_client_vers_serv)
+            sleep(1) # attendre 1 seconde sinon l'interface plante
+            self.__utilisateur.demarrer_appel(port_reception_voix_du_serveur)
         
         # Si l'appel est refusé (possible uniquement dans le cas où c'est l'appellant qui appelle cette fonction)
         else: 
@@ -417,31 +419,55 @@ class IHM_Appel(Tk):
 
 
 class Utilisateur:
+    # Déclaration des variables statiques pour la voix (TODO remplacer ça par des attributs non statiques et, après, déplacer ces lignes dans le __init__ ?)
+    FORMAT:paInt16             # taille des echantillons # type: ignore car VSCode ne reconnait pas paInt16 comme type
+    CHANNELS:int               # nombre de canaux (mono ou stereo)
+    FREQUENCE:int              # fréquence d'échantillonnage (Hz)
+    NB_ECHANTILLONS:int        # nombre d'échantillons du son simultanés
+    
+    # Instanciation des variables statiques pour la voix (TODO remplacer ça par des attributs non statiques et, après, déplacer ces lignes dans le __init__ ?)
+    FORMAT = paInt16           # taille des echantillons
+    CHANNELS = 1               # nombre de canaux : 1:(mono)
+    FREQUENCE = 44100          # fréquence d'échantillonnage 
+    NB_ECHANTILLONS = 1024     # nombre d'échantillons du son simultanés
+    
     def __init__(self, login:str, mdp:str, ip_serv:str)-> None:
         
         # Déclaration des attributs       
         self.__login: str
         self.__mdp: str
         self.__ip_serv: str
-        # self.__ihm_appel: IHM_Appel
-        self.__ihm_contacts: IHM_Contacts
+        
+        self.__ihm_auth: IHM_Authentification # TODO à supprimer ?
+        self.__ihm_appel: IHM_Appel # TODO à supprimer ?
+        self.__ihm_contacts: IHM_Contacts # TODO à supprimer ?
+        
+        self.__flux_emission:PyAudio.Stream      # flux audio émis # type: ignore car VSCode ne reconnait pas Stream comme type
+        self.__flux_reception:PyAudio.Stream     # flux audio reçu # type: ignore car VSCode ne reconnait pas Stream comme type
+        self.__audio: PyAudio                    # connecteur audio
+        self.__data:bytes                        # liste des enregistrements simultanés
         
         # Déclaration des sockets
         self.__socket_envoi: socket
-        self.__socket_reception: socket
+        self.__socket_reception: socket # TODO renommer en self.__socket_reception_msg
+        self.__socket_reception_voix: socket
         
         # Instanciation des attributs
         self.__login = login
         self.__mdp = mdp
         self.__ip_serv = ip_serv
         
-        # Création du socket d'envoi de messages
+        # Création du socket d'envoi des messages et de la voix (UDP)
         self.__socket_envoi = socket(AF_INET, SOCK_DGRAM)
         self.__socket_envoi.bind(("", 5000))
         
-        # Création du socket de réception de messages
+        # Création du socket de réception de messages (UDP)
         self.__socket_reception = socket(AF_INET, SOCK_DGRAM)
         self.__socket_reception.bind(("", 5101))
+        
+        # Création du socket de réception de la voix (UDP)
+        self.__socket_reception_voix = socket(AF_INET, SOCK_DGRAM)
+        self.__socket_reception_voix.bind(("", 5001)) # TODO essayer avec l'ip du serveur entre les guillemets ?
         
         # Tentative d'authentification auprès du serveur
         self.authentification()
@@ -497,7 +523,7 @@ class Utilisateur:
     
     def envoyer_requete_appel(self, correspondant:str)-> tuple[bool, int]:
         reponse_serv_requete_demarrer_appel:str
-        port_voix_client_vers_serv:int
+        port_reception_voix_du_serveur:int
         autorisation_de_demarrer_appel:bool
         autorisation_de_demarrer_appel = False
         
@@ -511,13 +537,13 @@ class Utilisateur:
             print(f"Le serveur et {correspondant} ont accepté la requête d'appel.")
             autorisation_de_demarrer_appel = True
             # Récupérer le port de communication audio client vers serveur (différent selon le client) :
-            port_voix_client_vers_serv = int(reponse_serv_requete_demarrer_appel[11:])
+            port_reception_voix_du_serveur = int(reponse_serv_requete_demarrer_appel[11:])
         
-        return autorisation_de_demarrer_appel, port_voix_client_vers_serv
+        return autorisation_de_demarrer_appel, port_reception_voix_du_serveur
     
     def decrocher(self, login_correspondant, login_utilisateur)-> tuple[bool, int]:
         reponse_serv_requete_demarrer_appel = str
-        port_voix_client_vers_serv: int
+        port_reception_voix_du_serveur: int
         autorisation_de_demarrer_appel: bool
         autorisation_de_demarrer_appel = False
         
@@ -531,14 +557,47 @@ class Utilisateur:
             print(f"Le serveur a accepté le démarrage de l'appel avec {login_correspondant}.")
             autorisation_de_demarrer_appel = True
             # Récupérer le port de communication audio client vers serveur (différent selon le client) :
-            port_voix_client_vers_serv = int(reponse_serv_requete_demarrer_appel[11:])
+            port_reception_voix_du_serveur = int(reponse_serv_requete_demarrer_appel[11:])
         
-        return autorisation_de_demarrer_appel, port_voix_client_vers_serv
+        return autorisation_de_demarrer_appel, port_reception_voix_du_serveur
         
-    def demarrer_appel(self, port_voix_client_vers_serv)-> None:
-        print(f"Le serveur a accepté le démarrage de l'appel et demande de recevoir les paquets audio sur le port {port_voix_client_vers_serv}.")
+    def demarrer_appel(self, port_reception_voix_du_serveur)-> None:
+        bin: str # poubelle
+        
+        print(f"Le serveur a accepté le démarrage de l'appel et demande de recevoir les paquets audio sur le port {port_reception_voix_du_serveur}.")
+        
+        # Définir un timeout de 1s pour le socket de réception de la voix (pour ne pas que le programme reste bloqué)
+        self.__socket_reception_voix.settimeout(1)
+        
+        # Initialisation des attributs audio
+        self.__audio = PyAudio()   # initialisation port audio
+        self.__flux_emission = self.__audio.open(format = Utilisateur.FORMAT, channels = Utilisateur.CHANNELS,
+                                                 rate= Utilisateur.FREQUENCE, input=True,
+                                                 frames_per_buffer = Utilisateur.NB_ECHANTILLONS)
+        self.__flux_reception = self.__audio.open(format = Utilisateur.FORMAT, channels = Utilisateur.CHANNELS,
+                                                 rate= Utilisateur.FREQUENCE, output=True,
+                                                 frames_per_buffer = Utilisateur.NB_ECHANTILLONS)
+        
         print("L'appel est en cours...")
-        # TODO gros travail ici, recevoir et envoyer les paquets de conversation audio
+        
+        try:
+            while True:
+                # enregistrement et émission
+                data = self.__flux_emission.read(Utilisateur.NB_ECHANTILLONS)
+                self.__socket_envoi.sendto(data, (self.__ip_serv, port_reception_voix_du_serveur))
+                
+                # réception et lecture
+                data, bin = self.__socket_reception_voix.recvfrom(2*Utilisateur.NB_ECHANTILLONS)
+                data = self.__flux_reception.write(data)
+            
+        except KeyboardInterrupt: # TODO gérer d'autre manière de quitter l'appel ?
+            pass
+        
+        finally:
+            self.__audio.close(self.__flux_emission)
+            self.__audio.close(self.__flux_reception)
+            self.__socket_reception_voix.close()
+            print("Fin de l'appel.")
     
     def get_login(self)-> str:
         return self.__login
