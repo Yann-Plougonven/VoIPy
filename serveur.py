@@ -16,6 +16,8 @@ class Service_Signalisation:
         self.__socket_ecoute: socket
         self.__socket_emission: socket
         
+        # TODO réinitialiser le statut des utilisateurs à 0 (offline) à chaque démarrage du serveur !!!
+        
         # initialisation du socket écoute du flux de signalisation (port 6100)
         self.__socket_ecoute = socket(family=AF_INET, type=SOCK_DGRAM)
         self.__socket_ecoute.bind(("", 6100))
