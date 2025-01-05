@@ -265,7 +265,8 @@ class Service_Signalisation:
     def terminer_appel(self, ip_client:str, msg: str)-> None:
         # TODO vérifier que l'utilisateur est bien authentifié
         pass
-                
+
+# TODO créer une classe Service_Voix pour gérer les flux audio   
     
 if __name__ == "__main__":
     service_signalisation: Service_Signalisation
