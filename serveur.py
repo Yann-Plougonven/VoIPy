@@ -5,6 +5,7 @@
 
 from pyaudio import *
 from socket import *
+from threading import *
 import sqlite3
 from datetime import datetime
 from time import sleep # TODO à supprimer si plus utilisé
@@ -12,17 +13,18 @@ import os.path
 
 class Service_Signalisation:
     def __init__(self) -> None:
-        # déclaration des sockets
+        # Déclaration des attributs
         self.__socket_ecoute: socket
         self.__socket_emission: socket
+        self.__liste_appels: list[Appel] = list()
         
         # TODO réinitialiser le statut des utilisateurs à 0 (offline) à chaque démarrage du serveur !!!
         
-        # initialisation du socket écoute du flux de signalisation (port 6100)
+        # Initialisation du socket écoute du flux de signalisation (port 6100)
         self.__socket_ecoute = socket(family=AF_INET, type=SOCK_DGRAM)
         self.__socket_ecoute.bind(("", 6100))
         
-        # initialisation du socket d'émission du flux de signalisation (port 6000)
+        # Initialisation du socket d'émission du flux de signalisation (port 6000)
         self.__socket_emission = socket(family=AF_INET, type=SOCK_DGRAM)
         self.__socket_emission.bind(("", 6000))
         
@@ -250,13 +252,15 @@ class Service_Signalisation:
         requete_bdd = f"SELECT ip FROM utilisateurs WHERE login = '{login_appelant}';"
         ip_appelant = self.requete_BDD(requete_bdd)[0][0]
         
-        # TODO lancer l'appel côté serveur (transfert de la voix)
-        
         # Informer les deux utilisateurs que l'appel est en cours
         self.envoyer_signalisation(ip_appelant, f"CALL START 6001")
         self.envoyer_signalisation(ip_appele, f"CALL START 6002")
+        
+        # Lancer un objet appel dans un thread (afin de laisser le service signalisation tourner)
+        self.__liste_appels.append(Appel(self.__socket_emission, ((ip_appelant, 6001), (ip_appele, 6002))))
+        self.__liste_appels[-1].start() # démarrer le dernier objet appel ajouté à la liste
     
-    
+
     def rejeter_appel(self, ip_client:str, msg: str)-> None:
         # TODO vérifier que l'utilisateur est bien authentifié ?
         pass
@@ -266,7 +270,75 @@ class Service_Signalisation:
         # TODO vérifier que l'utilisateur est bien authentifié
         pass
 
-# TODO créer une classe Service_Voix pour gérer les flux audio   
+
+class Appel(Thread):
+    def __init__(self, socket_emission, correspondants:list[list[str, int]]) -> None:
+        Thread.__init__(self)
+        
+        # Déclaration des attributs
+        self.__ip_appelant: str                 # IP de l'appelant  
+        self.__ip_appele1: str                  # IP de l'appelé 1 (anticipation de la potentielle évolution vers des appels à plusieurs)
+        self.__port_reception_appelant: int     # port de réception côté serveur du flux audio de l'appelant
+        self.__port_reception_appele1: int      # port de réception côté serveur du flux audio de l'appelé 1
+        
+        # Déclaration des sockets
+        self.__socket_emission: socket         # socket d'émission du flux audio (port 6000)
+        self.__socket_reception_appelant: socket    # socket de réception du flux audio de l'appelant
+        self.__socket_reception_appele1: socket     # socket de réception du flux audio de l'appelé 1
+        
+        # Initialisation des attributs (TODO c'est pas très propre, à revoir ?)
+        self.__ip_appelant = correspondants[0][0]
+        self.__ip_appele1 = correspondants[1][0]
+        self.__port_reception_appelant = correspondants[0][1]
+        self.__port_reception_appele1 = correspondants[1][1]
+        
+        # Initialisation du socket d'émission du flux audio (port 6000)
+        self.__socket_emission = socket_emission
+        
+        # Initialisation des sockets de réception du flux audio
+        self.__socket_reception_appelant = socket(family=AF_INET, type=SOCK_DGRAM)
+        self.__socket_reception_appelant.bind(("", self.__port_reception_appelant))
+        
+        self.__socket_reception_appele1 = socket(family=AF_INET, type=SOCK_DGRAM)
+        self.__socket_reception_appele1.bind(("", self.__port_reception_appele1))
+        
+        # Lancement de l'appel
+        print(f"[INFO] Lancement de l'appel entre {self.__ip_appelant} et {self.__ip_appele1}.")
+        self.transferer_la_voix()
+        
+    def transferer_la_voix(self) -> None:
+        # Déclaration des attributs
+        data:bytes              # paquet de données audio
+        nb_echantillons: int    # nombre d'échantillons audio
+        bin: str                # poubelle
+        
+        # Initialisation des attributs
+        nb_echantillons = 1024
+
+        # Boucle de reception et d'envoi des paquets audio
+        try:
+            while True:
+                # Reception des paquets audio envoyés par l'appelant
+                data, bin = self.__socket_reception_appelant.recvfrom(2*nb_echantillons)
+                
+                # Envoi des paquets audio envoyés par l'appelant à l'appelé 1
+                self.__socket_emission.sendto(data, (self.__ip_appele1, 5001))
+                
+                # Reception des paquets audio envoyés par l'appelé 1
+                data, bin = self.__socket_reception_appele1.recvfrom(2*nb_echantillons)
+                
+                # Envoi des paquets audio envoyés par l'appelé 1 à l'appelant
+                self.__socket_emission.sendto(data, (self.__ip_appelant, 5001))
+            
+        except KeyboardInterrupt: # TODO gérer d'autre manière de quitter l'appel côté serveur ?
+            pass
+        
+        finally:
+            self.__socket_reception_appelant.close()
+            self.__socket_reception_appele1.close()
+            self.__socket_emission_voix.close()
+            print("Fin de l'appel.")
+        
     
 if __name__ == "__main__":
     service_signalisation: Service_Signalisation

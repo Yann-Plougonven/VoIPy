@@ -445,7 +445,6 @@ class Utilisateur:
         self.__flux_emission:PyAudio.Stream      # flux audio émis # type: ignore car VSCode ne reconnait pas Stream comme type
         self.__flux_reception:PyAudio.Stream     # flux audio reçu # type: ignore car VSCode ne reconnait pas Stream comme type
         self.__audio: PyAudio                    # connecteur audio
-        self.__data:bytes                        # liste des enregistrements simultanés
         
         # Déclaration des sockets
         self.__socket_envoi: socket
@@ -562,6 +561,7 @@ class Utilisateur:
         return autorisation_de_demarrer_appel, port_reception_voix_du_serveur
         
     def demarrer_appel(self, port_reception_voix_du_serveur)-> None:
+        data:bytes # paquets audio
         bin: str # poubelle
         
         print(f"Le serveur a accepté le démarrage de l'appel et demande de recevoir les paquets audio sur le port {port_reception_voix_du_serveur}.")
