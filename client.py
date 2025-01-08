@@ -368,9 +368,9 @@ class IHM_Appel(Tk):
                 
         autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur = self.__utilisateur.envoyer_requete_appel(self.__correspondant)
         
-        self.demarrer_appel(autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur)
+        # Démarrer l'appel dans un thread séparé pour ne pas que l'interface freeze :
+        Thread(target=self.demarrer_appel, args=(autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur)).start()
 
-     
     def decrocher(self)-> None:
         autorisation_de_demarrer_l_appel: bool
         port_reception_voix_du_serveur: int
@@ -378,9 +378,9 @@ class IHM_Appel(Tk):
         self.__label_etat_appel.configure(text="Acceptation de l'appel...", bg="white")
         autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur = self.__utilisateur.decrocher(self.__correspondant, self.__login_utilisateur)
         
-        self.demarrer_appel(autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur)
+        # Démarrer l'appel dans un thread séparé pour ne pas que l'interface freeze :
+        Thread(target=self.demarrer_appel, args=(autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur)).start()
 
-   
     def demarrer_appel(self, autorisation_de_demarrer_l_appel:bool, port_reception_voix_du_serveur:int)-> None:
         # Si l'appel est accepté
         if autorisation_de_demarrer_l_appel:
@@ -567,7 +567,7 @@ class Utilisateur:
         print(f"Le serveur a accepté le démarrage de l'appel et demande de recevoir les paquets audio sur le port {port_reception_voix_du_serveur}.")
         
         # Définir un timeout de 1s pour le socket de réception de la voix (pour ne pas que le programme reste bloqué)
-        self.__socket_reception_voix.settimeout(1)
+        self.__socket_reception_voix.settimeout(5)
         
         # Initialisation des attributs audio
         self.__audio = PyAudio()   # initialisation port audio
@@ -598,6 +598,7 @@ class Utilisateur:
             self.__audio.close(self.__flux_reception)
             self.__socket_reception_voix.close()
             print("Fin de l'appel.")
+            # TODO plutôt faire un appel vers la fonction arrêter appel ?
     
     def get_login(self)-> str:
         return self.__login
