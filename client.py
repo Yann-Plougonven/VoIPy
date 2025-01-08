@@ -9,6 +9,31 @@ from tkinter import *
 from threading import *
 from time import sleep
 from tkinter import ttk # TODO à supprimer quand on aura retiré la liste déroulante de contacts
+import pyaudio
+from pydub import AudioSegment
+from pydub.playback import play
+
+def play_audio_with_pyaudio(mp3_file):
+    # Charger le fichier MP3 avec pydub
+    audio = AudioSegment.from_mp3(mp3_file)
+
+    # Initialiser PyAudio
+    p = pyaudio.PyAudio()
+
+    # Ouvrir un flux audio
+    stream = p.open(format=p.get_format_from_width(audio.sample_width),
+                    channels=audio.channels,
+                    rate=audio.frame_rate,
+                    output=True)
+
+    # Lire les données audio en morceaux
+    data = audio.raw_data
+    stream.write(data)
+
+    # Fermer le flux et PyAudio
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
 
 class IHM_Authentification(Tk):
     # Utilisation du protocole UDP : on n'établit pas de connexion avec le serveur,
@@ -221,6 +246,7 @@ class IHM_Contacts(Tk):
                     print(f"Requête d'appel reçue de {correspondant}.")
                     self.__stop_thread_event.set() # demander l'arrêt du thread
                     self.__utilisateur.set_timeout_socket_reception(180) # réinitialiser le timeout du socket de réception
+                    play_audio_with_pyaudio("sonnerie/appel.mp3")
                     
                     # Ouvrir l'IHM d'appel avec le correspondant, et détruire la fenêtre des contacts
                     # Il est nécessaire d'utiliser after() pour détruire l'IHM_contacts 
@@ -363,6 +389,7 @@ class IHM_Appel(Tk):
         self.mainloop()
 
     def envoyer_requete_appel(self)-> None:
+        play_audio_with_pyaudio("sonnerie/appel.mp3")
         autorisation_de_demarrer_l_appel: bool
         port_reception_voix_du_serveur: int
                 
@@ -400,7 +427,7 @@ class IHM_Appel(Tk):
     def raccrocher(self):
         print("Vous avez raccroché l'appel.")
         # TODO à faire
-
+        play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
     def couper_micro(self):
         print("Micro coupé!")
         # TODO
