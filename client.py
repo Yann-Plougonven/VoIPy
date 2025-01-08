@@ -412,7 +412,6 @@ class IHM_Appel(Tk):
         # Si l'appel est accepté
         if autorisation_de_demarrer_l_appel:
             self.__bouton_decrocher.configure(state=DISABLED) # Désactiver le bouton "Décrocher"
-            print("TESTTESTTESTTODO")
             self.__label_etat_appel.configure(text="Appel en cours", bg="PaleGreen1")
             sleep(1) # attendre 1 seconde sinon l'interface plante
             self.__utilisateur.demarrer_appel(port_reception_voix_du_serveur)
@@ -425,9 +424,16 @@ class IHM_Appel(Tk):
             # TODO rouvrir la fenêtre de contacts
         
     def raccrocher(self):
-        print("Vous avez raccroché l'appel.")
-        # TODO à faire
+        print("Vous avez demandé au serveur raccrocher l'appel.")
         play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
+        
+        self.__utilisateur.raccrocher()
+        
+        # Fermer la fenêtre d'appel
+        self.destroy()
+        
+        # Ouvrir la fenêtre des contacts
+        IHM_Contacts(self.__utilisateur)
     def couper_micro(self):
         print("Micro coupé!")
         # TODO
@@ -464,6 +470,7 @@ class Utilisateur:
         self.__login: str
         self.__mdp: str
         self.__ip_serv: str
+        self.__stop_appel: bool
         
         self.__ihm_auth: IHM_Authentification # TODO à supprimer ?
         self.__ihm_appel: IHM_Appel # TODO à supprimer ?
@@ -482,6 +489,7 @@ class Utilisateur:
         self.__login = login
         self.__mdp = mdp
         self.__ip_serv = ip_serv
+        self.__stop_appel = False
         
         # Création du socket d'envoi des messages et de la voix (UDP)
         self.__socket_envoi = socket(AF_INET, SOCK_DGRAM)
@@ -492,8 +500,9 @@ class Utilisateur:
         self.__socket_reception.bind(("", 5101))
         
         # Création du socket de réception de la voix (UDP)
-        self.__socket_reception_voix = socket(AF_INET, SOCK_DGRAM)
-        self.__socket_reception_voix.bind(("", 5001)) # TODO essayer avec l'ip du serveur entre les guillemets ?
+        # Le (re-)création du socket de réception de la voix
+        # est nécessaire pour chaque nouveau appel, donc elle se fait
+        # dans la méthode demarrer_appel() de la classe Utilisateur
         
         # Tentative d'authentification auprès du serveur
         self.authentification()
@@ -593,6 +602,13 @@ class Utilisateur:
         
         print(f"Le serveur a accepté le démarrage de l'appel et demande de recevoir les paquets audio sur le port {port_reception_voix_du_serveur}.")
         
+        # Réinitialisation de l'attribut stop_appel
+        self.__stop_appel = False
+        
+        # (Re-)création du socket de réception de la voix (UDP)
+        self.__socket_reception_voix = socket(AF_INET, SOCK_DGRAM)
+        self.__socket_reception_voix.bind(("", 5001))
+        
         # Définir un timeout de 1s pour le socket de réception de la voix (pour ne pas que le programme reste bloqué)
         self.__socket_reception_voix.settimeout(5)
         
@@ -608,14 +624,21 @@ class Utilisateur:
         print("L'appel est en cours...")
         
         try:
-            while True:
+            while not self.__stop_appel:
                 # enregistrement et émission
                 data = self.__flux_emission.read(Utilisateur.NB_ECHANTILLONS)
                 self.__socket_envoi.sendto(data, (self.__ip_serv, port_reception_voix_du_serveur))
                 
                 # réception et lecture
-                data, bin = self.__socket_reception_voix.recvfrom(2*Utilisateur.NB_ECHANTILLONS)
-                data = self.__flux_reception.write(data)
+                try:
+                    data, bin = self.__socket_reception_voix.recvfrom(2*Utilisateur.NB_ECHANTILLONS)
+                    data = self.__flux_reception.write(data)
+                except:
+                    print("On passe dans le except de la réception de la voix") # TODO suppr
+                    if data == "CALL END":
+                        print("ON A RECU UN CALL END") # TODO suppr
+                    # TODO il faut gérer la recption du call end du serveur (ajouter l'écoute du socket signalisation)
+                
             
         except KeyboardInterrupt: # TODO gérer d'autre manière de quitter l'appel ?
             pass
@@ -626,7 +649,32 @@ class Utilisateur:
             self.__socket_reception_voix.close()
             print("Fin de l'appel.")
             # TODO plutôt faire un appel vers la fonction arrêter appel ?
-    
+            
+    def raccrocher(self)-> None:
+        reponse_serv_requete_raccrocher: str
+        
+        # Envoyer la requête de fin d'appel au serveur
+        self.envoyer_message("CALL END REQUEST")
+        
+        # Attendre la réponse du serveur
+        reponse_serv_requete_raccrocher = self.recevoir_message()
+        
+        # Traiter la réponse du serveur et finir l'appel
+        if reponse_serv_requete_raccrocher.startswith("CALL END"):
+            self.terminer_appel()
+            
+    def terminer_appel(self)-> None:
+        # TODO il faudrait déplacer ici la logique de fermeture de la fenêtre d'appel et d'ouverture des contacts,
+        # pour qu'elle se fasse une fois que le serveur a confirmé la fin de l'appel
+        
+        print("Le serveur a accepté la fin de l'appel.")
+            
+        # Arrêter la boucle de l'appel
+        self.__stop_appel = True
+        
+        # Fermer le socket de reception de la voix
+        self.__socket_reception_voix.close()
+            
     def get_login(self)-> str:
         return self.__login
     

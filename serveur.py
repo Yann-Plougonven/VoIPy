@@ -74,7 +74,7 @@ class Service_Signalisation:
             self.rejeter_appel(ip_client, msg)
         
         elif msg.startswith("CALL END REQUEST"):
-            self.terminer_appel(ip_client, msg)
+            self.terminer_appel(ip_client)
             
     def envoyer_signalisation(self, ip_client:str, msg: str)-> None:
         tab_octets: bytearray
@@ -259,17 +259,29 @@ class Service_Signalisation:
         
         # Lancer un objet appel dans un thread (afin de laisser le service signalisation tourner)
         self.__liste_appels.append(Appel(self.__socket_emission, ((ip_appelant, 6001), (ip_appele, 6002))))
-        self.__liste_appels[-1].start() # démarrer le dernier objet appel ajouté à la liste
-    
+        self.__liste_appels[-1].start() # démarrer le dernier objet appel ajouté à la liste    
 
     def rejeter_appel(self, ip_client:str, msg: str)-> None:
         # TODO vérifier que l'utilisateur est bien authentifié ?
         pass
     
     
-    def terminer_appel(self, ip_client:str, msg: str)-> None:
-        # TODO vérifier que l'utilisateur est bien authentifié
-        pass
+    def terminer_appel(self, ip_client:str)-> None:
+        # Si l'utilisateur est authentifié
+        if self.is_ip_authentifiée(ip_client):
+            
+            # Recherche de l'appel correspondant à l'IP de l'appelant
+            for appel in self.__liste_appels:
+                ip_clients_appel = appel.get_ip_clients()
+                if ip_client in ip_clients_appel: # si l'IP du l'utilisateur raccrochant est dans la liste des IP des clients de l'appel
+                    
+                    # Informer les utilisateurs de la fin de l'appel
+                    for ip_client in ip_clients_appel:
+                        self.envoyer_signalisation(ip_client, "CALL END")
+
+                    # Terminer l'appel côté serveur (arrêt du thread appel)
+                    appel.terminer_appel()
+                    self.__liste_appels.remove(appel)
 
 
 class Appel(Thread):
@@ -277,6 +289,7 @@ class Appel(Thread):
         Thread.__init__(self)
         
         # Déclaration des attributs
+        self.__stop_thread_event: Event         # Event provoquant l'arrêt du thread appel
         self.__ip_appelant: str                 # IP de l'appelant  
         self.__ip_appele1: str                  # IP de l'appelé 1 (anticipation de la potentielle évolution vers des appels à plusieurs)
         self.__port_reception_appelant: int     # port de réception côté serveur du flux audio de l'appelant
@@ -288,6 +301,7 @@ class Appel(Thread):
         self.__socket_reception_appele1: socket     # socket de réception du flux audio de l'appelé 1
         
         # Initialisation des attributs (TODO c'est pas très propre, à revoir ?)
+        self.__stop_thread_event = Event()
         self.__ip_appelant = correspondants[0][0]
         self.__ip_appele1 = correspondants[1][0]
         self.__port_reception_appelant = correspondants[0][1]
@@ -303,11 +317,11 @@ class Appel(Thread):
         self.__socket_reception_appele1 = socket(family=AF_INET, type=SOCK_DGRAM)
         self.__socket_reception_appele1.bind(("", self.__port_reception_appele1))
         
-        # Lancement de l'appel
-        print(f"[INFO] Lancement de l'appel entre {self.__ip_appelant} et {self.__ip_appele1}.")
-        self.transferer_la_voix()
+        # # Lancement de l'appel
+        # print(f"[INFO] Lancement de l'appel entre {self.__ip_appelant} et {self.__ip_appele1}.")
+        # self.transferer_la_voix()
         
-    def transferer_la_voix(self) -> None:
+    def run(self) -> None:
         # Déclaration des attributs
         data:bytes              # paquet de données audio
         nb_echantillons: int    # nombre d'échantillons audio
@@ -318,7 +332,8 @@ class Appel(Thread):
 
         # Boucle de reception et d'envoi des paquets audio
         try:
-            while True:
+            while not self.__stop_thread_event.is_set(): # Tant que l'event de fin du thread n'est pas déclenché
+                
                 # Reception des paquets audio envoyés par l'appelant
                 data, bin = self.__socket_reception_appelant.recvfrom(2*nb_echantillons)
                 
@@ -337,8 +352,15 @@ class Appel(Thread):
         finally:
             self.__socket_reception_appelant.close()
             self.__socket_reception_appele1.close()
-            self.__socket_emission_voix.close()
             print("Fin de l'appel.")
+            
+    def terminer_appel(self) -> None:
+        self.__socket_reception_appelant.close()
+        self.__socket_reception_appele1.close()
+        self.__stop_thread_event.set()
+            
+    def get_ip_clients(self)-> list[str]:
+        return [self.__ip_appelant, self.__ip_appele1]
         
     
 if __name__ == "__main__":
