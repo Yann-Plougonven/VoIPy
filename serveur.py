@@ -346,7 +346,7 @@ class Appel(Thread):
                 # Envoi des paquets audio envoyés par l'appelé 1 à l'appelant
                 self.__socket_emission.sendto(data, (self.__ip_appelant, 5001))
             
-        except KeyboardInterrupt: # TODO gérer d'autre manière de quitter l'appel côté serveur ?
+        except : # TODO gérer d'autre manière de quitter l'appel côté serveur ?
             pass
         
         finally:
