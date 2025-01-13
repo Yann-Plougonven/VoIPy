@@ -246,7 +246,7 @@ class IHM_Contacts(Tk):
                     print(f"Requête d'appel reçue de {correspondant}.")
                     self.__stop_thread_event.set() # demander l'arrêt du thread
                     self.__utilisateur.set_timeout_socket_reception(180) # réinitialiser le timeout du socket de réception
-                    play_audio_with_pyaudio("sonnerie/appel.mp3")
+                    
                     
                     # Ouvrir l'IHM d'appel avec le correspondant, et détruire la fenêtre des contacts
                     # Il est nécessaire d'utiliser after() pour détruire l'IHM_contacts 
@@ -381,20 +381,25 @@ class IHM_Appel(Tk):
         if self.__le_client_est_l_appellant:
             self.after(100, self.envoyer_requete_appel) # after() permet d'appeler envoyer_requete_appel après 100ms.
         
-        # Si le client est appellé, activer le bouton "Décrocher"
+        # Si le client est appellé, activer le bouton "Décrocher" et lancer la sonnerie d'appel
         else:
+            # Activer le bouton "Décrocher"
             self.__bouton_decrocher.configure(state=NORMAL)
+            
+            # Jouer la sonnerie (dans un thread séparé pour ne pas bloquer l'interface)
+            Thread(target=play_audio_with_pyaudio, args=("sonnerie/appel.mp3",)).start()
             
         # lancer l'IHM
         self.mainloop()
 
     def envoyer_requete_appel(self)-> None:
-        play_audio_with_pyaudio("sonnerie/appel.mp3")
         autorisation_de_demarrer_l_appel: bool
         port_reception_voix_du_serveur: int
-                
-        autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur = self.__utilisateur.envoyer_requete_appel(self.__correspondant)
         
+        # Jouer la sonnerie (dans un thread séparé pour ne pas bloquer l'interface)
+        Thread(target=play_audio_with_pyaudio, args=("sonnerie/appel.mp3",)).start()  
+        autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur = self.__utilisateur.envoyer_requete_appel(self.__correspondant)
+            
         # Démarrer l'appel dans un thread séparé pour ne pas que l'interface freeze :
         Thread(target=self.demarrer_appel, args=(autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur)).start()
 
@@ -425,7 +430,6 @@ class IHM_Appel(Tk):
         
     def raccrocher(self):
         print("Vous avez demandé au serveur raccrocher l'appel.")
-        play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
         
         self.__utilisateur.raccrocher()
         
@@ -674,6 +678,9 @@ class Utilisateur:
         
         # Fermer le socket de reception de la voix
         self.__socket_reception_voix.close()
+        
+        # Jouer le son de fin d'appel
+        play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
             
     def get_login(self)-> str:
         return self.__login
