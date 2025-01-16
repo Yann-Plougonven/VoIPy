@@ -267,6 +267,8 @@ class Service_Signalisation:
     
     
     def terminer_appel(self, ip_client:str)-> None:
+        i: int
+        
         # Si l'utilisateur est authentifié
         if self.is_ip_authentifiée(ip_client):
             
@@ -275,7 +277,9 @@ class Service_Signalisation:
                 ip_clients_appel = appel.get_ip_clients()
                 if ip_client in ip_clients_appel: # si l'IP du l'utilisateur raccrochant est dans la liste des IP des clients de l'appel
                     
-                    # Informer les utilisateurs de la fin de l'appel
+                    print(f"[{self.heure()}] [INFO] Information des client {ip_clients_appel[0]} et {ip_clients_appel[1]} de la fin de l'appel.")
+                    
+                    # Informer les utilisateurs de la fin de l'appel 
                     for ip_client in ip_clients_appel:
                         self.envoyer_signalisation(ip_client, "CALL END")
 
@@ -352,7 +356,7 @@ class Appel(Thread):
         finally:
             self.__socket_reception_appelant.close()
             self.__socket_reception_appele1.close()
-            print("Fin de l'appel.")
+            print("Fin de l'appel.") # TODO ajouter l'heure dans les logs
             
     def terminer_appel(self) -> None:
         self.__socket_reception_appelant.close()
