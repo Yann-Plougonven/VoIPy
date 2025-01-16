@@ -324,7 +324,7 @@ class IHM_Appel(Tk):
         self.__bouton_micro: Button
         self.__bouton_hp: Button
         self.__bouton_decrocher: Button
-        self.__bouton_racrocher: Button
+        self.__bouton_raccrocher: Button
         
         # Instanciation des attributs
         self.__utilisateur = utilisateur
@@ -369,7 +369,7 @@ class IHM_Appel(Tk):
         
         # Bouton pour raccrocher
         self.__bouton_raccrocher = Button(
-            self.__cadre_interactif, text="Racrocher", font=("Arial", 12), bg="RosyBrown1", command=self.raccrocher)
+            self.__cadre_interactif, text="Raccrocher", font=("Arial", 12), bg="RosyBrown1", command=self.raccrocher)
         self.__bouton_raccrocher.grid(row=2, column=1, pady=10)
         self.__bouton_decrocher.configure(state=DISABLED) # Désactiver le bouton "Décrocher" (il est réactivé si le client est appellé)
         
@@ -592,7 +592,7 @@ class Utilisateur:
         
         reponse_serv_requete_demarrer_appel = self.recevoir_message() # Attendre le "CALL ACCEPT" du serveur
         
-        if reponse_serv_requete_demarrer_appel.startswith("CALL START"):
+        if reponse_serv_requete_demarrer_appel.startswith("²"):
             print(f"Le serveur a accepté le démarrage de l'appel avec {login_correspondant}.")
             autorisation_de_demarrer_appel = True
             # Récupérer le port de communication audio client vers serveur (différent selon le client) :
