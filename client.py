@@ -592,7 +592,7 @@ class Utilisateur:
         
         reponse_serv_requete_demarrer_appel = self.recevoir_message() # Attendre le "CALL ACCEPT" du serveur
         
-        if reponse_serv_requete_demarrer_appel.startswith("²"):
+        if reponse_serv_requete_demarrer_appel.startswith("CALL START"):
             print(f"Le serveur a accepté le démarrage de l'appel avec {login_correspondant}.")
             autorisation_de_demarrer_appel = True
             # Récupérer le port de communication audio client vers serveur (différent selon le client) :
