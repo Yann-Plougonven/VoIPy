@@ -353,24 +353,31 @@ class IHM_Appel(Tk):
         self.__cadre_interactif = Frame(self, bg="lightgrey", bd=2, relief="ridge")
         self.__cadre_interactif.pack(pady=20, padx=10, fill="both", expand=True)
 
+        # Configurer la grille pour le placement des boutons
+        self.__cadre_interactif.grid_rowconfigure(0, weight=1)  # Pour centrer les éléments à la verticale
+        self.__cadre_interactif.grid_rowconfigure(1, weight=1)
+        self.__cadre_interactif.grid_rowconfigure(2, weight=1)
+        self.__cadre_interactif.grid_columnconfigure(0, weight=1)  # Pour centrer les éléments à l'horizontale
+        self.__cadre_interactif.grid_columnconfigure(1, weight=1)
+        
         # Boutons interactifs (Couper micro, Haut-parleur)
         self.__bouton_micro = Button(
             self.__cadre_interactif, text=" Couper Micro", font=("Arial", 12), command=self.couper_micro)
-        self.__bouton_micro.grid(row=0, column=0, pady=10)
+        self.__bouton_micro.grid(row=0, column=0, padx=10 , pady=10, sticky="e") # Aligné à droite de sa cellule
 
         self.__bouton_hp = Button(
             self.__cadre_interactif, text=" Haut-parleur", font=("Arial", 12), command=self.activer_hp)
-        self.__bouton_hp.grid(row=0, column=1, pady=10)
+        self.__bouton_hp.grid(row=0, column=1, padx=10, pady=10, sticky="w") # Alligné à gauche de la cellule
 
-        # Bouton pour décrocher TODO ne doit pas être visible si l'appel est en cours
+        # Bouton pour décrocher (centré) TODO ne doit pas être visible si l'appel est en cours
         self.__bouton_decrocher = Button(
             self.__cadre_interactif, text="Décrocher", font=("Arial", 12), bg="PaleGreen1", command=self.decrocher)
-        self.__bouton_decrocher.grid(row=2, column=0, pady=10)
+        self.__bouton_decrocher.grid(row=1, column=0, columnspan=2 ,pady=10, sticky="n") #centré sur les 2 colonnes
         
-        # Bouton pour raccrocher
+        # Bouton pour raccrocher (centré en bas)
         self.__bouton_raccrocher = Button(
             self.__cadre_interactif, text="Raccrocher", font=("Arial", 12), bg="RosyBrown1", command=self.raccrocher)
-        self.__bouton_raccrocher.grid(row=2, column=1, pady=10)
+        self.__bouton_raccrocher.grid(row=2, column=0, columnspan=2, pady=10, sticky="s") #centré sur 2 colonnes
         self.__bouton_decrocher.configure(state=DISABLED) # Désactiver le bouton "Décrocher" (il est réactivé si le client est appellé)
         
         # Intercepte la fermeture de la fenêtre et appelle la méthode quit
