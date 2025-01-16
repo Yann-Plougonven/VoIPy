@@ -692,7 +692,7 @@ class Utilisateur:
         print("Le serveur informe tous les correspondants de la fin de l'appel.")
             
         # Arrêter la boucle de l'appel
-        self.__stop_appel = True
+        self.__stop_appel = True # TODO tester avec un .set() ici et dans la condition ?
         
         # Tenter de fermer les flux audio
         try:
