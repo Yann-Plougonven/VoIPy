@@ -682,13 +682,10 @@ class Utilisateur:
         # Fermer le socket de reception de la voix
         self.__socket_reception_voix.close()
         
-        # Affichage d'un message de fin d'appel sur l'IHM appel TODO dans cet état ça plante
-        # self.__ihm_appel.__label_etat_appel.configure(text="Appel terminé", bg="RosyBrown1")
-        
         # Jouer le son de fin d'appel
         play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
                 
-        # Fermer l'IHM d'appel TODO essayer sans try
+        # Fermer l'IHM d'appel
         try:
             self.__ihm_appel.fermer_ihm_appel()
             
@@ -696,7 +693,6 @@ class Utilisateur:
             print(f"Erreur lors de la fermeture de l'IHM: {e}")
                     
         # Ouvrir une nouvelle fenêtre des contacts
-        # sleep(3) # attendre 3 secondes pour que l'utilisateur puisse lire le message, et éviter les conflits de signalisation
         ihm_contacts = IHM_Contacts(self)
         
     def get_login(self)-> str:
