@@ -18,8 +18,10 @@ class Service_Signalisation:
         self.__socket_emission: socket
         self.__liste_appels: list[Appel] = list()
         
-        # TODO réinitialiser le statut des utilisateurs à 0 (offline) à chaque démarrage du serveur !!!
-        
+        # Réinitialiser le statut des utilisateurs dans la BDD à chaque démarrage du serveur (online = 0 et oncall = 0),
+        # Au cas où le serveur ou un client auraient été arrêtés brutalement
+        requete_bdd = "UPDATE utilisateurs SET online = 0, oncall = 0;"
+        self.requete_BDD(requete_bdd)
         
         # Initialisation du socket écoute du flux de signalisation (port 6100)
         self.__socket_ecoute = socket(family=AF_INET, type=SOCK_DGRAM)
@@ -141,7 +143,7 @@ class Service_Signalisation:
             print(f"[{self.heure()}] [INFO] Authentification réussie pour {login} sur le poste {ip_client}.")
             
             # Mettre à jour l'IP du client et son statut (online) dans la BDD
-            requete_bdd = f"UPDATE utilisateurs SET ip = '{ip_client}', online = 1 WHERE login = '{login}';"
+            requete_bdd = f"UPDATE utilisateurs SET ip = '{ip_client}', online = 1, oncall = 0 WHERE login = '{login}';"
             self.requete_BDD(requete_bdd)
             
             # Informer le client qu'il est authentifié
@@ -185,7 +187,7 @@ class Service_Signalisation:
         login = msg[7:] # suppression de l'entête "LOGOUT" (7 caractères) du message reçu
         
         # Demander au serveur de déconnecter l'utilisateur
-        requete_bdd = f"UPDATE utilisateurs SET online = 0 WHERE login = '{login}' AND ip = '{ip_client}';"
+        requete_bdd = f"UPDATE utilisateurs SET online = 0, oncall = 0 WHERE login = '{login}' AND ip = '{ip_client}';"
         self.requete_BDD(requete_bdd)
     
     def envoyer_liste_contacts(self, ip_client:str)-> None:
@@ -196,11 +198,11 @@ class Service_Signalisation:
         if self.is_ip_authentifiée(ip_client):
             
             # Récupération de la liste des contacts et de leur statut dans la BDD
-            requete_bdd = f"SELECT login, online FROM utilisateurs;"
+            requete_bdd = f"SELECT login, online, oncall FROM utilisateurs;"
             reponse_bdd = self.requete_BDD(requete_bdd)
                         
             # Conversion de la réponse en un dictionnaire
-            dict_contacts = {login: "online" if online else "offline" for login, online in reponse_bdd}
+            dict_contacts = {login: ("online" if online else "offline", "oncall" if oncall else "available") for login, online, oncall in reponse_bdd}
                         
             self.envoyer_signalisation(ip_client, f"CONTACTS LIST {dict_contacts}")  
             
@@ -253,6 +255,10 @@ class Service_Signalisation:
         requete_bdd = f"SELECT ip FROM utilisateurs WHERE login = '{login_appelant}';"
         ip_appelant = self.requete_BDD(requete_bdd)[0][0]
         
+        # Mettre à jour le statut des utilisateurs (oncall = 1) dans la BDD
+        requete_bdd = f"UPDATE utilisateurs SET oncall = 1 WHERE login = '{login_appelant}' OR login = '{login_appele}';"
+        self.requete_BDD(requete_bdd)
+        
         # Informer les deux utilisateurs que l'appel est en cours
         self.envoyer_signalisation(ip_appelant, f"CALL START 6001")
         self.envoyer_signalisation(ip_appele, f"CALL START 6002")
@@ -286,6 +292,10 @@ class Service_Signalisation:
                     # Terminer l'appel côté serveur (arrêt du thread appel)
                     appel.terminer_appel()
                     self.__liste_appels.remove(appel)
+                    
+                    # Mettre à jour le statut des utilisateurs (oncall = 0) dans la BDD
+                    requete_bdd = f"UPDATE utilisateurs SET oncall = 0 WHERE ip = '{ip_clients_appel[0]}' OR ip = '{ip_clients_appel[1]}';"
+                    self.requete_BDD(requete_bdd)
 
 
 class Appel(Thread):

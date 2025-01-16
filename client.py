@@ -144,7 +144,7 @@ class IHM_Contacts(Tk):
         
         # Titre principal
         self.__label_titre = Label(self, text="Appeler un collaborateur", font=("Helvetica", 20, "bold"))
-        self.__label_sous_titre = Label(self, text="Les contacts connectés apparaissent en vert", font=("Helvetica", 12))
+        self.__label_sous_titre = Label(self, text="Les contacts disponibles apparaissent en vert", font=("Helvetica", 12))
         self.__label_titre.pack(pady=10)
         self.__label_sous_titre.pack()
         
@@ -180,7 +180,7 @@ class IHM_Contacts(Tk):
         # Récupérer la liste des contacts
         str_contacts = self.__utilisateur.actualiser_liste_contacts() # obtenir les contacts sous forme de chaine
         str_contacts = str_contacts[13:] # supprimer l'entête "CONTACTS LIST" (13 premiers caractères de la chaine)
-        self.__dict_contacts = eval(str_contacts) # convertir la chaine en dicts de contacts liés à leur statut (online, offline)
+        self.__dict_contacts = eval(str_contacts) # convertir la chaine en dicts de contacts liés à leur statut (online, offline) et (oncall, available)
         
         # Supprimer les anciens boutons de la liste de contacts
         for widget in self.__frame_contacts.winfo_children():
@@ -191,15 +191,20 @@ class IHM_Contacts(Tk):
             btn_contact = Button(self.__frame_contacts, text=contact, font=("Helvetica", 14), command=lambda correspondant=contact: self.appeler_correspondant(correspondant))
             btn_contact.pack(pady=4, fill=X)
             
-            # Si le contact est en ligne, le bouton est vert.
-            if self.__dict_contacts[contact] == "online":
+            # Si le contact est en ligne, mais pas en appel, le bouton est vert
+            if "online" in self.__dict_contacts[contact] and "available" in self.__dict_contacts[contact]:
                 btn_contact.configure(bg="PaleGreen1")
 
                 # Si le contact est le client lui même, le bouton est désactivé (il ne peut pas s'appeller lui-même)
                 if contact == self.__login_utilisateur:
                     btn_contact.configure(state=DISABLED)
             
-            # Sinon, si le contact est hors ligne ou est le client lui même, le bouton est rouge et désactivé.
+            # Si le contact est en ligne, mais en appel, le bouton est orange et désactivé
+            elif "online" in self.__dict_contacts[contact] and "oncall" in self.__dict_contacts[contact]:
+                btn_contact.configure(bg="light goldenrod")
+                btn_contact.configure(state=DISABLED)
+            
+            # Sinon, si le contact est hors ligne (ou que son statut semble incorrect), le bouton est rouge et désactivé.
             else:
                 btn_contact.configure(bg="RosyBrown1")
                 btn_contact.configure(state=DISABLED)
