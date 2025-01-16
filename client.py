@@ -90,8 +90,8 @@ class IHM_Authentification(Tk):
         self.__entry_ip_serv.grid(row=2, column=0, pady=5)
         self.__btn_auth.grid(row=3, column=0, pady=20)
         
-        # intercepte la fermeture de la fenêtre et appellera la méthode quit TODO sur les 3 IHM
-        # self.protocol("WM_DELETE_WINDOW", self.quit)
+        # intercepte la fermeture de la fenêtre et appellera la méthode quit
+        self.protocol("WM_DELETE_WINDOW", self.quit)
         
         # Ajouter le support de l'appui sur la touche "Entrée" pour valider l'authentification
         self.bind("<Return>", lambda event: self.creer_utilisateur())
@@ -114,8 +114,8 @@ class IHM_Authentification(Tk):
         
         self.__utilisateur = Utilisateur(login, mdp, ip_serv)
         
-    # def quit(self)-> None: # TODO
-    #     self.destroy()
+    def quit(self)-> None:
+        self.destroy()
 
 
 class IHM_Contacts(Tk):
@@ -452,12 +452,21 @@ class IHM_Appel(Tk):
         self.after(1000, self.destroy) # fermer l'IHM d'appel
 
     def quit(self)-> None:
-        """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
+        """Gérer la fermeture forcée de l'IHM client : déconnexion de l'utilisateur, raccrocher, et fermeture de la fenêtre.
         """
+        # Informer le serveur qu'on raccroche
+        self.raccrocher()
+        
+        # Informer le serveur de notre déconnexion
         self.__utilisateur.deconnexion()
         
-        # TODO gestion de la fermeture de la fenêtre de contacts (j'ai pas regardé comment faire)
-        self.destroy() 
+        # Forcer la fin de l'appel, même si le serveur n'a pas encore envoyé de "CALL END",
+        # en précisant de ne pas rouvrir l'IHM des contacts
+        sleep(0.5)
+        self.__utilisateur.terminer_appel(ouvrir_ihm_contacts=False)
+        
+        # Femer la fenêtre de l'IHM appel
+        self.destroy()
 
 
 class Utilisateur:
@@ -656,31 +665,35 @@ class Utilisateur:
                 msg = self.recevoir_message()
                 if msg == "CALL END":
                     print("CALL END reçu de la part du serveur.")
-                    self.terminer_appel()
+                    self.terminer_appel(ouvrir_ihm_contacts=True)
             
             except timeout:
                 # Pas de CALL END reçu, l'appel continue
                 pass
-        
-        # self.__audio.close(self.__flux_emission)
-        # self.__audio.close(self.__flux_reception)
-        # self.__socket_reception_voix.close()
-        # print("Fin de l'appel.")
-        # TODO plutôt faire un appel vers la fonction arrêter appel ?
             
     def raccrocher(self)-> None:
         """Envoyer une requête de fin d'appel ""ALL END REQUEST" au serveur.
         """
         self.envoyer_message("CALL END REQUEST")
             
-    def terminer_appel(self)-> None:      
+    def terminer_appel(self, ouvrir_ihm_contacts:bool)-> None:      
         print("Le serveur informe tous les correspondants de la fin de l'appel.")
             
         # Arrêter la boucle de l'appel
         self.__stop_appel = True
         
-        # Fermer le socket de reception de la voix
-        self.__socket_reception_voix.close()
+        # Tenter de fermer les flux audio
+        try:
+            self.__audio.close(self.__flux_emission)
+            self.__audio.close(self.__flux_reception)
+        except Exception as e:
+            print(f"Information : Les flux audios n'ont pas pu être fermés car ils n'existent pas : {e}")
+        
+        # Fermer le socket de reception de la voix s'il existe
+        try:
+            self.__socket_reception_voix.close()
+        except Exception as e:
+            print(f"Information : Le socket de réception de la voix n'a pas pu être fermé car il n'existe pas : {e}")
         
         # Jouer le son de fin d'appel
         play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
@@ -692,8 +705,9 @@ class Utilisateur:
         except Exception as e:
             print(f"Erreur lors de la fermeture de l'IHM: {e}")
                     
-        # Ouvrir une nouvelle fenêtre des contacts
-        ihm_contacts = IHM_Contacts(self)
+        # Ouvrir une nouvelle fenêtre des contacts si demandé
+        if ouvrir_ihm_contacts:
+            ihm_contacts = IHM_Contacts(self)
         
     def get_login(self)-> str:
         return self.__login
