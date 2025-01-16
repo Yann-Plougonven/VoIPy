@@ -90,8 +90,8 @@ class IHM_Authentification(Tk):
         self.__entry_ip_serv.grid(row=2, column=0, pady=5)
         self.__btn_auth.grid(row=3, column=0, pady=20)
         
-        # intercepte la fermeture de la fenêtre et appellera la méthode quit TODO sur les 3 IHM
-        # self.protocol("WM_DELETE_WINDOW", self.quit)
+        # intercepte la fermeture de la fenêtre et appellera la méthode quit
+        self.protocol("WM_DELETE_WINDOW", self.quit)
         
         # Ajouter le support de l'appui sur la touche "Entrée" pour valider l'authentification
         self.bind("<Return>", lambda event: self.creer_utilisateur())
@@ -114,8 +114,8 @@ class IHM_Authentification(Tk):
         
         self.__utilisateur = Utilisateur(login, mdp, ip_serv)
         
-    # def quit(self)-> None: # TODO
-    #     self.destroy()
+    def quit(self)-> None:
+        self.destroy()
 
 
 class IHM_Contacts(Tk):
@@ -383,6 +383,10 @@ class IHM_Appel(Tk):
         # Intercepte la fermeture de la fenêtre et appelle la méthode quit
         self.protocol("WM_DELETE_WINDOW", self.quit)
         
+        # Mettre à jour la valeur de l'attribut __ihm_appel de l'objet utilisateur,
+        # afin que l'objet utilisateur puisse facilement interagir avec l'IHM d'appel.
+        self.__utilisateur.set_attribut_ihm_appel(self)
+        
         # Envoyer une requête d'appel au serveur si le client est l'appellant, 100ms après l'ouverture de la fenêtre.
         # Cela permet de laisser la fenêtre s'ouvrir avant que le correspondant décroche.
         if self.__le_client_est_l_appellant:
@@ -440,11 +444,6 @@ class IHM_Appel(Tk):
         
         self.__utilisateur.raccrocher()
         
-        # Fermer la fenêtre d'appel
-        self.destroy()
-        
-        # Ouvrir la fenêtre des contacts
-        IHM_Contacts(self.__utilisateur)
     def couper_micro(self):
         print("Micro coupé!")
         # TODO
@@ -452,14 +451,29 @@ class IHM_Appel(Tk):
     def activer_hp(self):
         print("Haut-parleur activé!")
         # TODO
+        
+    def fermer_ihm_appel(self)-> None:
+        """Fermer l'IHM d'appel.
+        L'appel de cette fonction peut-être nécessaire pour fermer l'IHM d'appel depuis la classe Utilisateur.
+        """
+        self.after(1000, self.destroy) # fermer l'IHM d'appel
 
     def quit(self)-> None:
-        """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
+        """Gérer la fermeture forcée de l'IHM client : déconnexion de l'utilisateur, raccrocher, et fermeture de la fenêtre.
         """
+        # Informer le serveur qu'on raccroche
+        self.raccrocher()
+        
+        # Informer le serveur de notre déconnexion
         self.__utilisateur.deconnexion()
         
-        # TODO gestion de la fermeture de la fenêtre de contacts (j'ai pas regardé comment faire)
-        self.destroy() 
+        # Forcer la fin de l'appel, même si le serveur n'a pas encore envoyé de "CALL END",
+        # en précisant de ne pas rouvrir l'IHM des contacts
+        sleep(0.5)
+        self.__utilisateur.terminer_appel(ouvrir_ihm_contacts=False)
+        
+        # Femer la fenêtre de l'IHM appel
+        self.destroy()
 
 
 class Utilisateur:
@@ -477,14 +491,14 @@ class Utilisateur:
     
     def __init__(self, login:str, mdp:str, ip_serv:str)-> None:
         
-        # Déclaration des attributs       
+        # Déclaration des attributs
         self.__login: str
         self.__mdp: str
         self.__ip_serv: str
         self.__stop_appel: bool
         
         self.__ihm_auth: IHM_Authentification # TODO à supprimer ?
-        self.__ihm_appel: IHM_Appel # TODO à supprimer ?
+        self.__ihm_appel: IHM_Appel
         self.__ihm_contacts: IHM_Contacts # TODO à supprimer ?
         
         self.__flux_emission:PyAudio.Stream      # flux audio émis # type: ignore car VSCode ne reconnait pas Stream comme type
@@ -521,6 +535,7 @@ class Utilisateur:
     def authentification(self)-> None:
         reponse_serv: str
         reponse_serv_contacts: str
+        ihm_contacts: IHM_Contacts
         
         print("Tentative d'authentification de l'utilisateur auprès du serveur.")
         self.envoyer_message(f"AUTH REQUEST {self.__login}:{self.__mdp}")
@@ -531,7 +546,7 @@ class Utilisateur:
         # Si l'authentification est réussie, on récupère la liste des contacts et affiche la fenêtre de contacts :
         if reponse_serv.startswith("AUTH ACCEPT"):
             print("Authentification réussie.")
-            self.__ihm_contacts = IHM_Contacts(self)
+            ihm_contacts = IHM_Contacts(self)
             
         # Si l'authentification est refusée :
         else:
@@ -599,7 +614,7 @@ class Utilisateur:
         
         reponse_serv_requete_demarrer_appel = self.recevoir_message() # Attendre le "CALL ACCEPT" du serveur
         
-        if reponse_serv_requete_demarrer_appel.startswith("CALL START"):
+        if reponse_serv_requete_demarrer_appel.startswith("CALL START "):
             print(f"Le serveur a accepté le démarrage de l'appel avec {login_correspondant}.")
             autorisation_de_demarrer_appel = True
             # Récupérer le port de communication audio client vers serveur (différent selon le client) :
@@ -609,6 +624,7 @@ class Utilisateur:
         
     def demarrer_appel(self, port_reception_voix_du_serveur)-> None:
         data:bytes # paquets audio
+        msg:str # message reçu
         bin: str # poubelle
         
         print(f"Le serveur a accepté le démarrage de l'appel et demande de recevoir les paquets audio sur le port {port_reception_voix_du_serveur}.")
@@ -620,8 +636,12 @@ class Utilisateur:
         self.__socket_reception_voix = socket(AF_INET, SOCK_DGRAM)
         self.__socket_reception_voix.bind(("", 5001))
         
-        # Définir un timeout de 1s pour le socket de réception de la voix (pour ne pas que le programme reste bloqué)
+        # Définir un timeout de 5s pour le socket de réception de la voix (pour ne pas que le programme reste bloqué)
         self.__socket_reception_voix.settimeout(5)
+        
+        # Définir un timeout de 1ms pour le socket de réception de la signalisation (pour ne pas que le programme reste bloqué)
+        # Evolution possible : gérer la reception de la signalisation dans un thread séparé
+        self.set_timeout_socket_reception(0.001)
         
         # Initialisation des attributs audio
         self.__audio = PyAudio()   # initialisation port audio
@@ -634,66 +654,83 @@ class Utilisateur:
         
         print("L'appel est en cours...")
         
-        try:
-            while not self.__stop_appel:
-                # enregistrement et émission
-                data = self.__flux_emission.read(Utilisateur.NB_ECHANTILLONS)
-                self.__socket_envoi.sendto(data, (self.__ip_serv, port_reception_voix_du_serveur))
-                
-                # réception et lecture
-                try:
-                    data, bin = self.__socket_reception_voix.recvfrom(2*Utilisateur.NB_ECHANTILLONS)
-                    data = self.__flux_reception.write(data)
-                except:
-                    print("On passe dans le except de la réception de la voix") # TODO suppr
-                    if data == "CALL END":
-                        print("ON A RECU UN CALL END") # TODO suppr
-                    # TODO il faut gérer la recption du call end du serveur (ajouter l'écoute du socket signalisation)
-                
+        while not self.__stop_appel:
+            # enregistrement et émission
+            data = self.__flux_emission.read(Utilisateur.NB_ECHANTILLONS)
+            self.__socket_envoi.sendto(data, (self.__ip_serv, port_reception_voix_du_serveur))
             
-        except KeyboardInterrupt: # TODO gérer d'autre manière de quitter l'appel ?
-            pass
-        
-        finally:
-            self.__audio.close(self.__flux_emission)
-            self.__audio.close(self.__flux_reception)
-            self.__socket_reception_voix.close()
-            print("Fin de l'appel.")
-            # TODO plutôt faire un appel vers la fonction arrêter appel ?
+            # Réception et lecture de la voix
+            try:
+                data, bin = self.__socket_reception_voix.recvfrom(2*Utilisateur.NB_ECHANTILLONS)
+                data = self.__flux_reception.write(data)
+
+            except timeout:
+                print("[INFO] Paquet audio manquant.")
+            
+            # Reception d'un potentiel message "CALL END" du serveur
+            try:
+                msg = self.recevoir_message()
+                if msg == "CALL END":
+                    print("CALL END reçu de la part du serveur.")
+                    self.terminer_appel(ouvrir_ihm_contacts=True)
+            
+            except timeout:
+                # Pas de CALL END reçu, l'appel continue
+                pass
             
     def raccrocher(self)-> None:
-        reponse_serv_requete_raccrocher: str
-        
-        # Envoyer la requête de fin d'appel au serveur
+        """Envoyer une requête de fin d'appel ""ALL END REQUEST" au serveur.
+        """
         self.envoyer_message("CALL END REQUEST")
-        
-        # Attendre la réponse du serveur
-        reponse_serv_requete_raccrocher = self.recevoir_message()
-        
-        # Traiter la réponse du serveur et finir l'appel
-        if reponse_serv_requete_raccrocher.startswith("CALL END"):
-            self.terminer_appel()
             
-    def terminer_appel(self)-> None:
-        # TODO il faudrait déplacer ici la logique de fermeture de la fenêtre d'appel et d'ouverture des contacts,
-        # pour qu'elle se fasse une fois que le serveur a confirmé la fin de l'appel
-        
-        print("Le serveur a accepté la fin de l'appel.")
+    def terminer_appel(self, ouvrir_ihm_contacts:bool)-> None:      
+        print("Le serveur informe tous les correspondants de la fin de l'appel.")
             
         # Arrêter la boucle de l'appel
         self.__stop_appel = True
         
-        # Fermer le socket de reception de la voix
-        self.__socket_reception_voix.close()
+        # Tenter de fermer les flux audio
+        try:
+            self.__audio.close(self.__flux_emission)
+            self.__audio.close(self.__flux_reception)
+        except Exception as e:
+            print(f"Information : Les flux audios n'ont pas pu être fermés car ils n'existent pas : {e}")
+        
+        # Fermer le socket de reception de la voix s'il existe
+        try:
+            self.__socket_reception_voix.close()
+        except Exception as e:
+            print(f"Information : Le socket de réception de la voix n'a pas pu être fermé car il n'existe pas : {e}")
         
         # Jouer le son de fin d'appel
         play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
+                
+        # Fermer l'IHM d'appel
+        try:
+            self.__ihm_appel.fermer_ihm_appel()
             
+        except Exception as e:
+            print(f"Erreur lors de la fermeture de l'IHM: {e}")
+                    
+        # Ouvrir une nouvelle fenêtre des contacts si demandé
+        if ouvrir_ihm_contacts:
+            ihm_contacts = IHM_Contacts(self)
+        
     def get_login(self)-> str:
         return self.__login
     
     def set_timeout_socket_reception(self, timeout:float=180)-> None:
         self.__socket_reception.settimeout(timeout)
+        
+    def set_attribut_ihm_appel(self, ihm_appel:IHM_Appel)-> None:
+        """Permet de définir l'attribut ihm_appel de la classe Utilisateur.
+        Cela est nécesssaire pour que la classe Utilisateur puisse fermer la fenêtre d'appel,
+        sans nécessiter de passer par plusieurs appels de méthodes externes.
+
+        Args:
+            ihm_appel (IHM_Appel): objet de la classe IHM_Appel
+        """
+        self.__ihm_appel = ihm_appel
 
 
 if __name__ == "__main__":
