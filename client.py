@@ -577,7 +577,10 @@ class Utilisateur:
         
         print("Tentative d'actualisation de la liste de contacts...")
         self.envoyer_message(f"CONTACTS REQUEST")
-        reponse_serv_contacts = self.recevoir_message()
+        try:
+            reponse_serv_contacts = self.recevoir_message()
+        except:
+            pass # TODO
         
         if reponse_serv_contacts.startswith("CONTACTS LIST"):
             print("La liste de contacts a été récupérée.")
