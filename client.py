@@ -347,12 +347,12 @@ class IHM_Appel(Tk):
         self.__label_correspondant = Label(self, text=f"Correspondant : {self.__correspondant}", font=("Arial", 12), bg="white")
         self.__label_correspondant.pack(pady=10)
 
-        # Liste déroulante pour l'annuaire de contacts
-        self.__label_liste = Label(self, text="Annuaire de contacts :", font=("Arial", 10), bg="white")
-        self.__label_liste.pack()
-        self.__liste_contacts = ttk.Combobox(self, values=["John Doe", "Alice", "Bob", "Eve"], font=("Arial", 10)) # TODO a supprimer une fois le nouveau menu réalisé
-        self.__liste_contacts.set("Sélectionner un contact")
-        self.__liste_contacts.pack(pady=5)
+        # # Liste déroulante pour l'annuaire de contacts TODO supprimer + supprimer ttk dans les importations
+        # self.__label_liste = Label(self, text="Annuaire de contacts :", font=("Arial", 10), bg="white")
+        # self.__label_liste.pack()
+        # self.__liste_contacts = ttk.Combobox(self, values=["John Doe", "Alice", "Bob", "Eve"], font=("Arial", 10)) # TODO a supprimer une fois le nouveau menu réalisé
+        # self.__liste_contacts.set("Sélectionner un contact")
+        # self.__liste_contacts.pack(pady=5)
 
         # Partie interactive
         self.__cadre_interactif = Frame(self, bg="lightgrey", bd=2, relief="ridge")
