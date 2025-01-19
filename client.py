@@ -16,8 +16,6 @@ from pydub.playback import play
 
 # TODO nettoyer les fichiers inutiles git
 
-# TODO Gérer les mauvais identifiants + Bouton raccrocher si l'autre ne répond pas ou qu'on est appelé
-
 # TODO bouger ça dans la classe Appel
 def play_audio_with_pyaudio(mp3_file):
     # Charger le fichier MP3 avec pydub
@@ -41,13 +39,15 @@ def play_audio_with_pyaudio(mp3_file):
     stream.close()
     p.terminate()
 
-class IHM_Authentification(Tk):
+class IHM_Authentification(Tk,):
     # Utilisation du protocole UDP : on n'établit pas de connexion avec le serveur,
     # le client lui indique simplement sa présence en s'authentifiant
-    def __init__(self)-> None:
+    def __init__(self, msg_erreur:str="")-> None:
         Tk.__init__(self)
         
-        # déclaration des attributs 
+        # déclaration des attributs
+        self.__label_erreur: Label
+        
         self.__frame_auth: Frame
         self.__entry_login: Entry
         self.__label_login: Label
@@ -68,6 +68,9 @@ class IHM_Authentification(Tk):
         self.__label_titre = Label(self, text="VoIPy", font=("Helvetica", 24, "bold"))
         self.__label_titre.pack(pady=20)
         
+        # Message d'erreur
+        self.__label_erreur = Label(self, text=msg_erreur, font=("Arial", 11), fg="red2")
+        
         # Frame d'authentification
         self.__frame_auth = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
         self.__entry_login = Entry(self.__frame_auth, width=50)
@@ -84,6 +87,8 @@ class IHM_Authentification(Tk):
         self.__btn_auth = Button(self.__frame_serv, text="Authentification", command=self.creer_utilisateur) # lance la création de l'utilisateur (et son authentification)
         
         # Ajout des widgets
+        self.__label_erreur.pack(pady=10)
+        
         self.__frame_auth.pack(pady=20)
         self.__label_login.grid(row=0, column=0, pady=5)
         self.__entry_login.grid(row=1, column=0, pady=5)
@@ -124,7 +129,7 @@ class IHM_Authentification(Tk):
         self.destroy()
 
 
-class IHM_Contacts(Tk):
+class IHM_Contacts(Tk,):
     def __init__(self, utilisateur)-> None:
         Tk.__init__(self)
         
@@ -566,24 +571,53 @@ class Utilisateur:
     
     def authentification(self)-> None:
         reponse_serv: str
-        reponse_serv_contacts: str
-        ihm_contacts: IHM_Contacts
         
+        # Définir le timeout de réception de la réponse serveur à quelques secondes
+        self.set_timeout_socket_reception(4) 
+        
+        # Envoi de la requête d'authentification au serveur
         print("Tentative d'authentification de l'utilisateur auprès du serveur.")
         self.envoyer_message(f"AUTH REQUEST {self.__login}:{self.__mdp}")
-        
         print("En attente de la réponse du serveur...")
-        reponse_serv = self.recevoir_message()
         
-        # Si l'authentification est réussie, on récupère la liste des contacts et affiche la fenêtre de contacts :
+        # Tentative de réception de la réponse serveur
+        try:
+            reponse_serv = self.recevoir_message()
+            
+        # Si le serveur ne répond pas dans les delais impartis :
+        except timeout:
+            # Fermer les sockets ouverts
+            self.__socket_envoi.close()
+            self.__socket_reception.close()
+            
+            # Afficher un message d'erreur dans la console et relancer l'IHM d'authentification en affichant un message d'erreur
+            print("Timed out : Vérifiez l'IP renseignée et si le serveur est bien lancé et accessible.")
+            IHM_Authentification(msg_erreur="Timed out : Vérifiez l'IP renseignée et l'état du serveur.")
+        
+        # Si l'authentification est réussie :
         if reponse_serv.startswith("AUTH ACCEPT"):
             print("Authentification réussie.")
-            ihm_contacts = IHM_Contacts(self)
+            IHM_Contacts(self)
             
         # Si l'authentification est refusée :
-        else:
+        elif reponse_serv.startswith("AUTH REJECT"):
+            # Fermer les sockets ouverts
+            self.__socket_envoi.close()
+            self.__socket_reception.close()
+            
+            # Afficher un message d'erreur dans la console et relancer l'IHM d'authentification en affichant un message d'erreur
             print("L'authentification a échouée :", reponse_serv)
-            # TODO Rappeller une nouvelle IHM d'authentification ou afficher un message d'erreur
+            IHM_Authentification(msg_erreur="Login ou mot de passe incorrect.")
+        
+        # Si le serveur renvoie un message inattendu :
+        else:
+            # Fermer les sockets ouverts
+            self.__socket_envoi.close()
+            self.__socket_reception.close()
+            
+            # Afficher un message d'erreur dans la console et relancer l'IHM d'authentification en affichant un message d'erreur
+            print("Erreur inattendue :", reponse_serv)
+            IHM_Authentification(msg_erreur="Erreur inattendue : veuillez réessayer.")
             
     def deconnexion(self)-> None:
         print("Information du serveur de notre déconnexion...")
@@ -813,5 +847,4 @@ if __name__ == "__main__":
     LARGEUR_FEN:int = 375
     HAUTEUR_FEN:int = 700
     
-    ihm_auth: IHM_Authentification
-    ihm_auth = IHM_Authentification()
+    IHM_Authentification()
