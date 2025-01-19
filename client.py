@@ -1,6 +1,7 @@
 # Client VoIP
 # Écrit par Tugdual Thepaut et Yann Plougonven--Lastennet
 # Projet de S3 de BUT R&T à l'IUT de Lannion - Décembre 2024 / Janvier 2025
+# Information : si vous exécutez ce programme dans VSCode, pensez à ouvrir tout le dossier "VoIPy" dans VSCode.
 # Dépôt GitHub : https://github.com/Yann-Plougonven/VoIPy
 
 from pyaudio import *
@@ -13,6 +14,11 @@ import pyaudio
 from pydub import AudioSegment
 from pydub.playback import play
 
+# TODO nettoyer les fichiers inutiles git
+
+# TODO Gérer les mauvais identifiants + Bouton raccrocher si l'autre ne répond pas ou qu'on est appelé
+
+# TODO bouger ça dans la classe Appel
 def play_audio_with_pyaudio(mp3_file):
     # Charger le fichier MP3 avec pydub
     audio = AudioSegment.from_mp3(mp3_file)
@@ -160,7 +166,10 @@ class IHM_Contacts(Tk):
         self.protocol("WM_DELETE_WINDOW", self.quit)
         
         # Liste/Boutons des contacts
-        self.lister_contacts()
+        try:
+            self.lister_contacts()
+        except: # TODO
+            pass
     
     def lister_contacts(self)-> None:
         """Initialise ou actualise la liste des contacts.
@@ -175,7 +184,7 @@ class IHM_Contacts(Tk):
         self.__dict_contacts: dict[str]
         
         # Arrêt de l'écoute de requête d'appel, si elle est déjà lancée, pour éviter les interférences
-        self.stopper_deamon_ecoute_requetes_appel(180)
+        self.stopper_deamon_ecoute_requetes_appel()
         
         # Récupérer la liste des contacts
         str_contacts = self.__utilisateur.actualiser_liste_contacts() # obtenir les contacts sous forme de chaine
@@ -220,7 +229,7 @@ class IHM_Contacts(Tk):
         
     def appeler_correspondant(self, correspondant: str)-> None:
         # Arrêt de l'écoute de requête d'appel pour éviter les interférences
-        self.stopper_deamon_ecoute_requetes_appel(180)
+        self.stopper_deamon_ecoute_requetes_appel()
                 
         # Ouverture de l'interface d'appel
         print(f"Ouverture de l'interface d'appel avec {correspondant}...")
@@ -250,7 +259,7 @@ class IHM_Contacts(Tk):
                     correspondant = msg[13:] # supprimer l'entête "CALL REQUEST " du message (13 premiers caractères de la chaine)
                     print(f"Requête d'appel reçue de {correspondant}.")
                     self.__stop_thread_event.set() # demander l'arrêt du thread
-                    self.__utilisateur.set_timeout_socket_reception(180) # réinitialiser le timeout du socket de réception
+                    self.__utilisateur.set_timeout_socket_reception(60) # réinitialiser le timeout du socket de réception
                     
                     
                     # Ouvrir l'IHM d'appel avec le correspondant, et détruire la fenêtre des contacts
@@ -269,21 +278,18 @@ class IHM_Contacts(Tk):
         self.__thread_ecoute.daemon = True # configuration du thread en mode deamon
         self.__thread_ecoute.start() # démarrage du thread
         
-    def stopper_deamon_ecoute_requetes_appel(self, timeout:float=190)-> None:
+    def stopper_deamon_ecoute_requetes_appel(self)-> None:
         """Arrêt du thread d'écoute de requête d'appel, s'il est déjà démarré, pour éviter les interférences.
         Définit un "long" timeout pour le socket de réception de la signalisation (protocole applicatif),
         étant donné que le timeout est de seulement 100ms pour le deamon d'écoute des requête d'appel.
         et que la réception de signalisations plus spécifiques peut prendre plus de temps et n'est pas bouclée.
-
-        Args:
-            timeout (float): timeout du socket de réception de la signalisation (180s pour répondre à l'appel, par défaut)
         """
         try:
             if self.__thread_ecoute.is_alive():
                 print(f"Arrêt temporaire de l'écoute des requêtes d'appels")
                 self.__stop_thread_event.set() # Demande d'arrêt du thread d'écoute de requête d'appel
                 self.__thread_ecoute.join() # Attente de l'arrêt du thread d'écoute de requête d'appel
-                self.__utilisateur.set_timeout_socket_reception(timeout) # Définir le timeout passé en paramètre
+                self.__utilisateur.set_timeout_socket_reception(60) # Définir le timeout du socket de réception à 60 secondes
 
         except AttributeError: # Si le thread d'écoute n'est pas encore démarré
             pass
@@ -321,6 +327,7 @@ class IHM_Appel(Tk):
         self.__login_utilisateur: str
         self.__correspondant: str
         self.__le_client_est_l_appellant: bool
+        self.__appel_en_cours: bool
         self.__label_correspondant: Label
         self.__label_etat_appel: Label
         self.__label_liste: Label
@@ -336,6 +343,7 @@ class IHM_Appel(Tk):
         self.__login_utilisateur = self.__utilisateur.get_login()
         self.__correspondant = correspondant
         self.__le_client_est_l_appellant = le_client_est_l_appellant
+        self.__appel_en_cours = False
         self.title("Appel VoIP")
         self.geometry(f"{LARGEUR_FEN}x{HAUTEUR_FEN}") # Taille de fenêtre pour simuler un écran de téléphone
 
@@ -413,41 +421,59 @@ class IHM_Appel(Tk):
         port_reception_voix_du_serveur: int
         
         # Jouer la sonnerie (dans un thread séparé pour ne pas bloquer l'interface)
-        Thread(target=play_audio_with_pyaudio, args=("sonnerie/appel.mp3",)).start()  
+        Thread(target=play_audio_with_pyaudio, args=("sonnerie/appel.mp3",)).start()
+        
+        # Envoi de la requête d'appel
         autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur = self.__utilisateur.envoyer_requete_appel(self.__correspondant)
+        
+        # Si l'appel est accepté
+        if autorisation_de_demarrer_l_appel:
+            print("Le client doit envoyer sa voix sur le port serveur", port_reception_voix_du_serveur)
             
-        # Démarrer l'appel dans un thread séparé pour ne pas que l'interface freeze :
-        Thread(target=self.demarrer_appel, args=(autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur)).start()
+            # Démarer l'appel dans un thread séparé :
+            Thread(target=self.demarrer_appel, args=(port_reception_voix_du_serveur,)).start()
+        
+        # Si l'appel est refusé
+        else:
+            # Afficher un message d'appel refusé et attendre 3 secondes pour que l'utilisateur puisse lire le message
+            self.__label_etat_appel.configure(text="Appel refusé", bg="RosyBrown1")
+            play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
+            
+            # Fermer l'IHM d'appel et réouvrir la fenêtre des contacts
+            self.destroy()
+            IHM_Contacts(self.__utilisateur)
 
     def decrocher(self)-> None:
         autorisation_de_demarrer_l_appel: bool
         port_reception_voix_du_serveur: int
-
+        
         self.__label_etat_appel.configure(text="Acceptation de l'appel...", bg="white")
+        
         autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur = self.__utilisateur.decrocher(self.__correspondant, self.__login_utilisateur)
         
         # Démarrer l'appel dans un thread séparé pour ne pas que l'interface freeze :
-        Thread(target=self.demarrer_appel, args=(autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur)).start()
+        Thread(target=self.demarrer_appel, args=(port_reception_voix_du_serveur,)).start()
 
-    def demarrer_appel(self, autorisation_de_demarrer_l_appel:bool, port_reception_voix_du_serveur:int)-> None:
-        # Si l'appel est accepté
-        if autorisation_de_demarrer_l_appel:
-            self.__bouton_decrocher.configure(state=DISABLED) # Désactiver le bouton "Décrocher"
-            self.__label_etat_appel.configure(text="Appel en cours", bg="PaleGreen1")
-            sleep(1) # attendre 1 seconde sinon l'interface plante
-            self.__utilisateur.demarrer_appel(port_reception_voix_du_serveur)
+    def demarrer_appel(self, port_reception_voix_du_serveur:int)-> None:
+        self.__appel_en_cours = True
+        self.__bouton_decrocher.configure(state=DISABLED) # Désactiver le bouton "Décrocher"
+        self.__label_etat_appel.configure(text="Appel en cours", bg="PaleGreen1")
+        sleep(1) # attendre 1 seconde sinon l'interface plante
+        self.__utilisateur.demarrer_appel(port_reception_voix_du_serveur)
         
-        # Si l'appel est refusé (possible uniquement dans le cas où c'est l'appellant qui appelle cette fonction)
-        else: 
-            self.__label_etat_appel.configure(text="Appel refusé", bg="RosyBrown1")
-            sleep(3) # attendre 3 secondes pour que l'utilisateur puisse lire le message
-            self.destroy() # fermeture de la fenêtre d'appel
-            # TODO rouvrir la fenêtre de contacts
-        
-    def raccrocher(self):
-        print("Vous avez demandé au serveur raccrocher l'appel.")
-        
-        self.__utilisateur.raccrocher()
+    def raccrocher(self):        
+        # Si l'appel est en cours, demander au serveur de raccrocher
+        if self.__appel_en_cours:
+            print("Raccrochage de l'appel...")
+            self.__label_etat_appel.configure(text="Demande de fin de l'appel...", bg="RosyBrown1")
+            self.__utilisateur.raccrocher()
+            
+        # Si quelqu'un nous appelle mais que l'appel n'a pas encore été accepté, demander au serveur de refuser l'appel
+        else:
+            print("Refus de l'appel...")
+            self.__label_etat_appel.configure(text="Refus de l'appel...", bg="RosyBrown1")
+            play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
+            self.__utilisateur.rejeter_appel(self.__correspondant)
         
     def couper_micro(self):
         print("Micro coupé!")
@@ -475,6 +501,7 @@ class IHM_Appel(Tk):
         # Forcer la fin de l'appel, même si le serveur n'a pas encore envoyé de "CALL END",
         # en précisant de ne pas rouvrir l'IHM des contacts
         sleep(0.5)
+        self.__appel_en_cours = False
         self.__utilisateur.terminer_appel(ouvrir_ihm_contacts=False)
         
         # Femer la fenêtre de l'IHM appel
@@ -573,20 +600,29 @@ class Utilisateur:
     
     def actualiser_liste_contacts(self)-> str:
         reponse_serv_contacts: str
-        reponse_serv_contacts = "" # TODO mieux gérer l'erreur si la liste des contacts n'a pas pu être récupérée
+        reponse_serv_contacts = ""
         
         print("Tentative d'actualisation de la liste de contacts...")
+        
+        # Demander la liste des contacts au serveur
         self.envoyer_message(f"CONTACTS REQUEST")
+        
+        # Tentative de reception de la liste des contacts
         try:
             reponse_serv_contacts = self.recevoir_message()
-        except:
-            pass # TODO
+        except Exception as e:
+            print(f"Erreur lors de la réception de la liste des contacts : {e}")
         
+        # Si la liste des contacts a été récupérée
         if reponse_serv_contacts.startswith("CONTACTS LIST"):
             print("La liste de contacts a été récupérée.")
         
-        else: # Si la liste des contacts n'a pas pu être récupérée
-                print("Erreur : la liste des contacts n'a pas pu être récupérée.")
+        # Si la liste des contacts n'a pas pu être récupérée, 
+        # rappeler récursivement la méthode jusqu'à ce que la liste des contacts soit récupérée.
+        # Cette solution est un peu "bourrine" (elle contourne juste le problème), mais elle est simple et efficace.
+        else: 
+            print("Erreur lors de la réception de la liste des contacts.")
+            reponse_serv_contacts = self.actualiser_liste_contacts()
         
         return reponse_serv_contacts
     
@@ -594,6 +630,7 @@ class Utilisateur:
         reponse_serv_requete_demarrer_appel:str
         port_reception_voix_du_serveur:int
         autorisation_de_demarrer_appel:bool
+        port_reception_voix_du_serveur = None
         autorisation_de_demarrer_appel = False
         
         print(f"Envoi de la requête d'appel pour {correspondant} au serveur...")
@@ -602,11 +639,25 @@ class Utilisateur:
         
         reponse_serv_requete_demarrer_appel = self.recevoir_message()
         
+        # Si l'appel est accepté
         if reponse_serv_requete_demarrer_appel.startswith("CALL START"):
             print(f"Le serveur et {correspondant} ont accepté la requête d'appel.")
+            
+            # Autoriser le démarrage de l'appel
             autorisation_de_demarrer_appel = True
+            
             # Récupérer le port de communication audio client vers serveur (différent selon le client) :
             port_reception_voix_du_serveur = int(reponse_serv_requete_demarrer_appel[11:])
+            
+        # Si l'appel est refusé
+        elif reponse_serv_requete_demarrer_appel.startswith("CALL DENY"):
+            print(f"Le serveur et {correspondant} ont refusé la requête d'appel.")
+            # Autorisation_de_demarrer_appel reste à False et port_reception_voix_du_serveur à None.
+
+        # Reception de message inattendu
+        else:
+            print(f"Erreur : le serveur a renvoyé une réponse inattendue : {reponse_serv_requete_demarrer_appel}")
+            # Autorisation_de_demarrer_appel reste à False et port_reception_voix_du_serveur à None.
         
         return autorisation_de_demarrer_appel, port_reception_voix_du_serveur
     
@@ -629,8 +680,22 @@ class Utilisateur:
             port_reception_voix_du_serveur = int(reponse_serv_requete_demarrer_appel[11:])
         
         return autorisation_de_demarrer_appel, port_reception_voix_du_serveur
+    
+    def rejeter_appel(self, correspondant)-> None:
+        # Informer le serveur du refus de l'appel
+        self.envoyer_message(f"CALL DENY {correspondant}")
         
-    def demarrer_appel(self, port_reception_voix_du_serveur)-> None:
+        # Fermer l'IHM d'appel
+        try:
+            self.__ihm_appel.fermer_ihm_appel()
+            
+        except Exception as e:
+            print(f"Erreur lors de la fermeture de l'IHM: {e}")
+                    
+        # Ouvrir une nouvelle fenêtre des contacts
+        IHM_Contacts(self)
+        
+    def demarrer_appel(self, port_reception_voix_du_serveur:int)-> None:
         data:bytes # paquets audio
         msg:str # message reçu
         bin: str # poubelle
@@ -709,6 +774,9 @@ class Utilisateur:
             self.__socket_reception_voix.close()
         except Exception as e:
             print(f"Information : Le socket de réception de la voix n'a pas pu être fermé car il n'existe pas : {e}")
+            
+        # Définir un timeout un peu plus long pour le socket de réception de la signalisation
+        self.set_timeout_socket_reception(1)
         
         # Jouer le son de fin d'appel
         play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
@@ -722,12 +790,12 @@ class Utilisateur:
                     
         # Ouvrir une nouvelle fenêtre des contacts si demandé
         if ouvrir_ihm_contacts:
-            ihm_contacts = IHM_Contacts(self)
+            IHM_Contacts(self)
         
     def get_login(self)-> str:
         return self.__login
     
-    def set_timeout_socket_reception(self, timeout:float=180)-> None:
+    def set_timeout_socket_reception(self, timeout:float=60)-> None:
         self.__socket_reception.settimeout(timeout)
         
     def set_attribut_ihm_appel(self, ihm_appel:IHM_Appel)-> None:

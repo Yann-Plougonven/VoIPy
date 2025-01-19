@@ -8,7 +8,6 @@ from socket import *
 from threading import *
 import sqlite3
 from datetime import datetime
-from time import sleep # TODO à supprimer si plus utilisé
 import os.path
 
 class Service_Signalisation:
@@ -17,6 +16,7 @@ class Service_Signalisation:
         self.__socket_ecoute: socket
         self.__socket_emission: socket
         self.__liste_appels: list[Appel] = list()
+        self.__liste_ports_reception_utilises: list[int] = list()
         
         # Réinitialiser le statut des utilisateurs dans la BDD à chaque démarrage du serveur (online = 0 et oncall = 0),
         # Au cas où le serveur ou un client auraient été arrêtés brutalement
@@ -72,7 +72,7 @@ class Service_Signalisation:
         elif msg.startswith("CALL ACCEPT"):
             self.lancer_appel(ip_client, msg)
             
-        elif msg.startswith("CALL REJECT"):
+        elif msg.startswith("CALL DENY"):
             self.rejeter_appel(ip_client, msg)
         
         elif msg.startswith("CALL END REQUEST"):
@@ -244,6 +244,8 @@ class Service_Signalisation:
         login_appelant: str
         ip_appelant: str
         login_appele: str
+        port_reception_appelant: int
+        port_reception_appele1: int
         
         # Isolement des logins des deux utilisateurs de l'en-tête "CALL ACCEPT " (12 caractères) du message
         msg = msg[12:]
@@ -259,37 +261,80 @@ class Service_Signalisation:
         requete_bdd = f"UPDATE utilisateurs SET oncall = 1 WHERE login = '{login_appelant}' OR login = '{login_appele}';"
         self.requete_BDD(requete_bdd)
         
-        # Informer les deux utilisateurs que l'appel est en cours
-        self.envoyer_signalisation(ip_appelant, f"CALL START 6001")
-        self.envoyer_signalisation(ip_appele, f"CALL START 6002")
+        # Choisir de nouveaux ports serveur de réception des flux audio des deux utilisateurs
+        # Cela est nécessaire pour que le serveur puisse transmettre plsuieurs appels en parallèle
+        
+        # S'il n'y a plus aucun appel en cours, attribuer le port 5001 à l'appelant
+        if self.__liste_ports_reception_utilises == []:
+            port_reception_appelant = 6001
+            self.__liste_ports_reception_utilises.append(6001)
+        
+        # Si un appel est déjà en cours, attribuer le dernier port utilisé + 1 à l'appelant
+        else:
+            port_reception_appelant = self.__liste_ports_reception_utilises[-1] + 1
+            self.__liste_ports_reception_utilises.append(port_reception_appelant)
+        
+        # Attribuer le port suivant à l'appelé
+        port_reception_appele1 = self.__liste_ports_reception_utilises[-1] + 1
+        self.__liste_ports_reception_utilises.append(port_reception_appele1)
+        
+        # Informer les deux utilisateurs que l'appel est en cours, et leur transmettre les ports côté serveur qui leurs sont attribués
+        self.envoyer_signalisation(ip_appelant, f"CALL START {port_reception_appelant}")
+        self.envoyer_signalisation(ip_appele, f"CALL START {port_reception_appele1}")
         
         # Lancer un objet appel dans un thread (afin de laisser le service signalisation tourner)
-        self.__liste_appels.append(Appel(self.__socket_emission, ((ip_appelant, 6001), (ip_appele, 6002))))
+        # Le choix d'une liste pour les clients de l'appel se justifie par une anticipation de la potentielle évolution vers des appels à plusieurs
+        self.__liste_appels.append(Appel(self.__socket_emission, ((ip_appelant, port_reception_appelant), (ip_appele, port_reception_appele1))))
         self.__liste_appels[-1].start() # démarrer le dernier objet appel ajouté à la liste    
 
-    def rejeter_appel(self, ip_client:str, msg: str)-> None:
-        # TODO vérifier que l'utilisateur est bien authentifié ?
-        pass
-    
+    def rejeter_appel(self, ip_appele:str, msg: str)-> None:
+        login_appelant: str   # Login de l'appellant à informer du rejet de l'appel
+        ip_appelant: str      # IP de l'appellant
+        
+        # Si l'utilisateur est authentifié
+        if self.is_ip_authentifiée(ip_appele):
+            
+            # Récupérer le login de l'appelant à informer du rejet de l'appel
+            login_appelant = msg[10:] # suppression de l'entête "CALL DENY " (10 caractères) du message reçu
+            
+            # Récupérer l'IP de l'appelant
+            requete_bdd = f"SELECT ip FROM utilisateurs WHERE login = '{login_appelant}';"
+            ip_appelant = self.requete_BDD(requete_bdd)[0][0]
+            
+            # Informer l'appelant que l'appel a été refusé
+            print(f"[{self.heure()}] [INFO] Information de {login_appelant} que {ip_appele} a refusé son appel.")
+            self.envoyer_signalisation(ip_appelant, "CALL DENY")
     
     def terminer_appel(self, ip_client:str)-> None:
-        i: int
+        appel: Appel                # Objet appel correspondant à l'appel terminé
+        ip_clients_appel: list[str] # liste des IP des clients de l'appel
+        ip_client:str               # une IP de client
+        port_appel: int             # un port de réception côté serveur du flux audio de l'appel
         
         # Si l'utilisateur est authentifié
         if self.is_ip_authentifiée(ip_client):
             
             # Recherche de l'appel correspondant à l'IP de l'appelant
+            # Pour chaque appel en cours
             for appel in self.__liste_appels:
+                
+                # Récupérer les IP des clients de l'appel
                 ip_clients_appel = appel.get_ip_clients()
-                if ip_client in ip_clients_appel: # si l'IP du l'utilisateur raccrochant est dans la liste des IP des clients de l'appel
+                
+                # Si l'IP du l'utilisateur raccrochant est dans la liste des IP des clients de l'appel...
+                if ip_client in ip_clients_appel: 
                     
-                    print(f"[{self.heure()}] [INFO] Information des client {ip_clients_appel[0]} et {ip_clients_appel[1]} de la fin de l'appel.")
+                    print(f"[{self.heure()}] [INFO] Information des clients {[ip_client for ip_client in ip_clients_appel]} de la fin de l'appel.")
                     
-                    # Informer les utilisateurs de la fin de l'appel 
+                    # Informer chaque correspondant de la fin de l'appel                   
                     for ip_client in ip_clients_appel:
                         self.envoyer_signalisation(ip_client, "CALL END")
-
-                    # Terminer l'appel côté serveur (arrêt du thread appel)
+                        
+                    # Récupérer et libérer les ports de reception voix côté serveur utilisés par l'appel
+                    for port_appel in appel.get_ports_receptions_individuels():
+                        self.__liste_ports_reception_utilises.remove(port_appel)
+                    
+                    # Terminer l'appel côté serveur : arrêt du thread Appel
                     appel.terminer_appel()
                     self.__liste_appels.remove(appel)
                     
@@ -310,7 +355,7 @@ class Appel(Thread):
         self.__port_reception_appele1: int      # port de réception côté serveur du flux audio de l'appelé 1
         
         # Déclaration des sockets
-        self.__socket_emission: socket         # socket d'émission du flux audio (port 6000)
+        self.__socket_emission: socket              # socket d'émission du flux audio (port 6000)
         self.__socket_reception_appelant: socket    # socket de réception du flux audio de l'appelant
         self.__socket_reception_appele1: socket     # socket de réception du flux audio de l'appelé 1
         
@@ -375,6 +420,9 @@ class Appel(Thread):
             
     def get_ip_clients(self)-> list[str]:
         return [self.__ip_appelant, self.__ip_appele1]
+    
+    def get_ports_receptions_individuels(self)-> list[int]:
+        return [self.__port_reception_appelant, self.__port_reception_appele1]
         
     
 if __name__ == "__main__":
