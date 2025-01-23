@@ -9,10 +9,8 @@ from socket import *
 from tkinter import *
 from threading import *
 from time import sleep
-import pyaudio
-import json
 from pydub import AudioSegment
-from pydub.playback import play
+import json
 
 # TODO nettoyer les fichiers inutiles git
 class IHM_Authentification(Tk):
@@ -451,7 +449,7 @@ class IHM_Appel(Tk):
             audio = AudioSegment.from_mp3(mp3_file)
 
             # Initialiser PyAudio
-            p = pyaudio.PyAudio()
+            p = PyAudio()
 
             # Ouvrir un flux audio
             stream = p.open(format=p.get_format_from_width(audio.sample_width),
@@ -467,6 +465,7 @@ class IHM_Appel(Tk):
             stream.stop_stream()
             stream.close()
             p.terminate()
+            
         except Exception as e:
             print(f"Erreur lors de la lecture du fichier audio (vérifiez l'installation de FFMPEG): {e}")
         
@@ -782,7 +781,7 @@ class Utilisateur:
         print("Le serveur informe tous les correspondants de la fin de l'appel.")
             
         # Arrêter la boucle de l'appel
-        self.__stop_appel = True # TODO tester avec un .set() ici et dans la condition ?
+        self.__stop_appel = True
         
         # Tenter de fermer les flux audio
         try:

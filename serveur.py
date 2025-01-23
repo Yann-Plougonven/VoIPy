@@ -6,9 +6,9 @@
 from pyaudio import *
 from socket import *
 from threading import *
+from datetime import datetime
 import sqlite3
 import json
-from datetime import datetime
 import os.path
 
 class Service_Signalisation:
