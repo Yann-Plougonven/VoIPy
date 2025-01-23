@@ -9,7 +9,6 @@ from socket import *
 from tkinter import *
 from threading import *
 from time import sleep
-from tkinter import ttk # TODO à supprimer quand on aura retiré la liste déroulante de contacts
 import pyaudio
 import json
 from pydub import AudioSegment
@@ -304,8 +303,6 @@ class IHM_Appel(Tk):
         self.__appel_en_cours: bool
         self.__label_correspondant: Label
         self.__label_etat_appel: Label
-        self.__label_liste: Label
-        self.__liste_contacts: ttk.Combobox
         self.__cadre_interactif: Frame
         self.__bouton_micro: Button
         self.__bouton_hp: Button
@@ -329,13 +326,6 @@ class IHM_Appel(Tk):
         self.__label_correspondant = Label(self, text=f"Correspondant : {self.__correspondant}", font=("Arial", 12), bg="white")
         self.__label_correspondant.pack(pady=10)
 
-        # # Liste déroulante pour l'annuaire de contacts TODO supprimer + supprimer ttk dans les importations
-        # self.__label_liste = Label(self, text="Annuaire de contacts :", font=("Arial", 10), bg="white")
-        # self.__label_liste.pack()
-        # self.__liste_contacts = ttk.Combobox(self, values=["John Doe", "Alice", "Bob", "Eve"], font=("Arial", 10)) # TODO a supprimer une fois le nouveau menu réalisé
-        # self.__liste_contacts.set("Sélectionner un contact")
-        # self.__liste_contacts.pack(pady=5)
-
         # Partie interactive
         self.__cadre_interactif = Frame(self, bg="lightgrey", bd=2, relief="ridge")
         self.__cadre_interactif.pack(pady=20, padx=10, fill="both", expand=True)
@@ -350,21 +340,21 @@ class IHM_Appel(Tk):
         # Boutons interactifs (Couper micro, Haut-parleur)
         self.__bouton_micro = Button(
             self.__cadre_interactif, text=" Couper Micro", font=("Arial", 12), command=self.couper_micro)
-        self.__bouton_micro.grid(row=0, column=0, padx=10 , pady=10, sticky="e") # Aligné à droite de sa cellule
+        self.__bouton_micro.grid(row=0, column=0, padx=10 , pady=10, sticky="e") # aligné à droite de sa cellule
 
         self.__bouton_hp = Button(
             self.__cadre_interactif, text=" Haut-parleur", font=("Arial", 12), command=self.activer_hp)
-        self.__bouton_hp.grid(row=0, column=1, padx=10, pady=10, sticky="w") # Alligné à gauche de la cellule
+        self.__bouton_hp.grid(row=0, column=1, padx=10, pady=10, sticky="w") # alligné à gauche de la cellule
 
-        # Bouton pour décrocher (centré) TODO ne doit pas être visible si l'appel est en cours
+        # Bouton pour décrocher (centré)
         self.__bouton_decrocher = Button(
             self.__cadre_interactif, text="Décrocher", font=("Arial", 12), bg="PaleGreen1", command=self.decrocher)
-        self.__bouton_decrocher.grid(row=1, column=0, columnspan=2 ,pady=10, sticky="n") #centré sur les 2 colonnes
+        self.__bouton_decrocher.grid(row=1, column=0, columnspan=2 ,pady=10, sticky="n") # centré sur les 2 colonnes
         
         # Bouton pour raccrocher (centré en bas)
         self.__bouton_raccrocher = Button(
             self.__cadre_interactif, text="Raccrocher", font=("Arial", 12), bg="RosyBrown1", command=self.raccrocher)
-        self.__bouton_raccrocher.grid(row=2, column=0, columnspan=2, pady=10, sticky="s") #centré sur 2 colonnes
+        self.__bouton_raccrocher.grid(row=2, column=0, columnspan=2, pady=10, sticky="s") # centré sur 2 colonnes
         self.__bouton_decrocher.configure(state=DISABLED) # Désactiver le bouton "Décrocher" (il est réactivé si le client est appellé)
         
         # Intercepte la fermeture de la fenêtre et appelle la méthode quit
