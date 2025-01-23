@@ -18,26 +18,29 @@ from pydub.playback import play
 
 # TODO bouger ça dans la classe Appel
 def play_audio_with_pyaudio(mp3_file):
-    # Charger le fichier MP3 avec pydub
-    audio = AudioSegment.from_mp3(mp3_file)
+    try:
+        # Charger le fichier MP3 avec pydub
+        audio = AudioSegment.from_mp3(mp3_file)
 
-    # Initialiser PyAudio
-    p = pyaudio.PyAudio()
+        # Initialiser PyAudio
+        p = pyaudio.PyAudio()
 
-    # Ouvrir un flux audio
-    stream = p.open(format=p.get_format_from_width(audio.sample_width),
-                    channels=audio.channels,
-                    rate=audio.frame_rate,
-                    output=True)
+        # Ouvrir un flux audio
+        stream = p.open(format=p.get_format_from_width(audio.sample_width),
+                        channels=audio.channels,
+                        rate=audio.frame_rate,
+                        output=True)
 
-    # Lire les données audio en morceaux
-    data = audio.raw_data
-    stream.write(data)
+        # Lire les données audio en morceaux
+        data = audio.raw_data
+        stream.write(data)
 
-    # Fermer le flux et PyAudio
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
+        # Fermer le flux et PyAudio
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+    except Exception as e:
+        print(f"Erreur lors de la lecture du fichier audio (vérifiez l'installation de FFMPEG): {e}")
 
 class IHM_Authentification(Tk,):
     # Utilisation du protocole UDP : on n'établit pas de connexion avec le serveur,
