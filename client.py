@@ -16,32 +16,6 @@ from pydub.playback import play
 
 # TODO nettoyer les fichiers inutiles git
 
-# TODO bouger ça dans la classe Appel
-def play_audio_with_pyaudio(mp3_file):
-    try:
-        # Charger le fichier MP3 avec pydub
-        audio = AudioSegment.from_mp3(mp3_file)
-
-        # Initialiser PyAudio
-        p = pyaudio.PyAudio()
-
-        # Ouvrir un flux audio
-        stream = p.open(format=p.get_format_from_width(audio.sample_width),
-                        channels=audio.channels,
-                        rate=audio.frame_rate,
-                        output=True)
-
-        # Lire les données audio en morceaux
-        data = audio.raw_data
-        stream.write(data)
-
-        # Fermer le flux et PyAudio
-        stream.stop_stream()
-        stream.close()
-        p.terminate()
-    except Exception as e:
-        print(f"Erreur lors de la lecture du fichier audio (vérifiez l'installation de FFMPEG): {e}")
-
 class IHM_Authentification(Tk,):
     # Utilisation du protocole UDP : on n'établit pas de connexion avec le serveur,
     # le client lui indique simplement sa présence en s'authentifiant
@@ -419,7 +393,7 @@ class IHM_Appel(Tk):
             self.__bouton_decrocher.configure(state=NORMAL)
             
             # Jouer la sonnerie (dans un thread séparé pour ne pas bloquer l'interface)
-            Thread(target=play_audio_with_pyaudio, args=("sonnerie/appel.mp3",)).start()
+            Thread(target=self.play_audio_with_pyaudio, args=("sonnerie/appel.mp3",)).start()
             
         # lancer l'IHM
         self.mainloop()
@@ -429,7 +403,7 @@ class IHM_Appel(Tk):
         port_reception_voix_du_serveur: int
         
         # Jouer la sonnerie (dans un thread séparé pour ne pas bloquer l'interface)
-        Thread(target=play_audio_with_pyaudio, args=("sonnerie/appel.mp3",)).start()
+        Thread(target=self.play_audio_with_pyaudio, args=("sonnerie/appel.mp3",)).start()
         
         # Envoi de la requête d'appel
         autorisation_de_demarrer_l_appel, port_reception_voix_du_serveur = self.__utilisateur.envoyer_requete_appel(self.__correspondant)
@@ -445,7 +419,7 @@ class IHM_Appel(Tk):
         else:
             # Afficher un message d'appel refusé et attendre 3 secondes pour que l'utilisateur puisse lire le message
             self.__label_etat_appel.configure(text="Appel refusé", bg="RosyBrown1")
-            play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
+            self.play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
             
             # Fermer l'IHM d'appel et réouvrir la fenêtre des contacts
             self.destroy()
@@ -480,7 +454,7 @@ class IHM_Appel(Tk):
         else:
             print("Refus de l'appel...")
             self.__label_etat_appel.configure(text="Refus de l'appel...", bg="RosyBrown1")
-            play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
+            self.play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
             self.__utilisateur.rejeter_appel(self.__correspondant)
         
     def couper_micro(self):
@@ -490,6 +464,31 @@ class IHM_Appel(Tk):
     def activer_hp(self):
         print("Haut-parleur activé!")
         # TODO
+        
+    def play_audio_with_pyaudio(self, mp3_file):
+        try:
+            # Charger le fichier MP3 avec pydub
+            audio = AudioSegment.from_mp3(mp3_file)
+
+            # Initialiser PyAudio
+            p = pyaudio.PyAudio()
+
+            # Ouvrir un flux audio
+            stream = p.open(format=p.get_format_from_width(audio.sample_width),
+                            channels=audio.channels,
+                            rate=audio.frame_rate,
+                            output=True)
+
+            # Lire les données audio en morceaux
+            data = audio.raw_data
+            stream.write(data)
+
+            # Fermer le flux et PyAudio
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+        except Exception as e:
+            print(f"Erreur lors de la lecture du fichier audio (vérifiez l'installation de FFMPEG): {e}")
         
     def fermer_ihm_appel(self)-> None:
         """Fermer l'IHM d'appel.
@@ -816,7 +815,7 @@ class Utilisateur:
         self.set_timeout_socket_reception(1)
         
         # Jouer le son de fin d'appel
-        play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
+        self.__ihm_appel.play_audio_with_pyaudio("sonnerie/raccrocher.mp3")
                 
         # Fermer l'IHM d'appel
         try:
