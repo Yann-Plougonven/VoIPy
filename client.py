@@ -12,7 +12,6 @@ from time import sleep
 from pydub import AudioSegment
 import json
 
-# TODO nettoyer les fichiers inutiles git
 class IHM_Authentification(Tk):
     # Utilisation du protocole UDP : on n'établit pas de connexion avec le serveur,
     # le client lui indique simplement sa présence en s'authentifiant
@@ -54,7 +53,7 @@ class IHM_Authentification(Tk):
         
         # Frame de choix du serveur
         self.__frame_serv = Frame(self, borderwidth=10, relief="groove", padx=10, pady=10)
-        self.__label_ip_client = Label(self.__frame_serv, text=f"Votre IP client : {gethostbyname(gethostname())}") # TODO l'IP affichée n'est pas celle de la bonne carte réseau
+        self.__label_ip_client = Label(self.__frame_serv, text=f"Votre IP client : {gethostbyname(gethostname())}")
         self.__entry_ip_serv = Entry(self.__frame_serv, width=50)
         self.__entry_ip_serv.insert(0, "127.0.0.1") # valeur par défaut
         self.__label_ip_serv = Label(self.__frame_serv, text="IP du serveur VoIP")
@@ -490,7 +489,7 @@ class IHM_Appel(Tk):
         self.__appel_en_cours = False
         self.__utilisateur.terminer_appel(ouvrir_ihm_contacts=False)
         
-        # Femer la fenêtre de l'IHM appel
+        # Fermer la fenêtre de l'IHM appel
         self.destroy()
 
 
