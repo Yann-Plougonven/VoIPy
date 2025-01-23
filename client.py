@@ -16,7 +16,6 @@ from pydub import AudioSegment
 from pydub.playback import play
 
 # TODO nettoyer les fichiers inutiles git
-
 class IHM_Authentification(Tk):
     # Utilisation du protocole UDP : on n'établit pas de connexion avec le serveur,
     # le client lui indique simplement sa présence en s'authentifiant
@@ -94,14 +93,13 @@ class IHM_Authentification(Tk):
         login: str
         mdp: str
         ip_serv: str
-        self.__utilisateur: Utilisateur
         
         login = self.__entry_login.get()
         mdp = self.__entry_mdp.get()
         ip_serv = self.__entry_ip_serv.get()
         self.destroy()
         
-        self.__utilisateur = Utilisateur(login, mdp, ip_serv)
+        Utilisateur(login, mdp, ip_serv)
         
     def quit(self)-> None:
         self.destroy()
@@ -137,7 +135,7 @@ class IHM_Contacts(Tk):
         self.__label_titre.pack(pady=10)
         self.__label_sous_titre.pack()
         
-        # Bouton d'actualisation de la liste des contacts TODO
+        # Bouton d'actualisation de la liste des contacts
         self.__btn_actualiser = Button(self, text="Actualiser la liste", font=("Helvetica", 14), command=self.lister_contacts)
         self.__btn_actualiser.pack(pady=10)
         
@@ -151,8 +149,8 @@ class IHM_Contacts(Tk):
         # Liste/Boutons des contacts
         try:
             self.lister_contacts()
-        except: # TODO
-            pass
+        except:
+            print("Erreur lors de l'actualisation de la liste des contacts.")
     
     def lister_contacts(self)-> None:
         """Initialise ou actualise la liste des contacts.
@@ -201,7 +199,6 @@ class IHM_Contacts(Tk):
         # Ecouter les potentielles requêtes d'appel, 100ms après l'ouverture de la fenêtre.
         # Cela permet de laisser la fenêtre s'ouvrir avant que le client boucle sur l'écoute de requête d'appel.
         self.after(100, self.demarrer_deamon_ecoute_requetes_appel) # after() permet d'appeler ecouter_requete_appel après 100ms. 
-                                                    # TODO jsp si c'est utile ici
         
         # lancer l'IHM (Note : même si on dirait que ça ne sert à rien, 
         # c'est notamment nécessaire pour que la fenêtre se ferme correctement)
@@ -292,12 +289,9 @@ class IHM_Contacts(Tk):
         """Gérer la fermeture de l'IHM client : déconnexion de l'utilisateur et fermeture de la fenêtre.
         """
         self.__utilisateur.deconnexion()
-        
-        # TODO gestion de la fermeture des sockets (jsp si c'est nécessaire)
         self.destroy() 
 
-# TODO : faire en sorte que toutes les IMH aient la même charte graphique, et supprimer les éléments inutiles 
-# de IHM_Appel (certainement la liste déroulante de contacts)
+
 class IHM_Appel(Tk):
     def __init__(self, utilisateur, correspondant: str, le_client_est_l_appellant:bool)-> None:
         Tk.__init__(self)
@@ -456,12 +450,10 @@ class IHM_Appel(Tk):
             self.__utilisateur.rejeter_appel(self.__correspondant)
         
     def couper_micro(self):
-        print("Micro coupé!")
-        # TODO
-
+        print("Micro coupé (non implémenté) !")
+        
     def activer_hp(self):
-        print("Haut-parleur activé!")
-        # TODO
+        print("Haut-parleur activé (non implémenté) !")
         
     def play_audio_with_pyaudio(self, mp3_file):
         try:
@@ -514,13 +506,13 @@ class IHM_Appel(Tk):
 
 
 class Utilisateur:
-    # Déclaration des variables statiques pour la voix (TODO remplacer ça par des attributs non statiques et, après, déplacer ces lignes dans le __init__ ?)
+    # Déclaration des variables statiques pour la voix
     FORMAT:paInt16             # taille des echantillons # type: ignore car VSCode ne reconnait pas paInt16 comme type
     CHANNELS:int               # nombre de canaux (mono ou stereo)
     FREQUENCE:int              # fréquence d'échantillonnage (Hz)
     NB_ECHANTILLONS:int        # nombre d'échantillons du son simultanés
     
-    # Instanciation des variables statiques pour la voix (TODO remplacer ça par des attributs non statiques et, après, déplacer ces lignes dans le __init__ ?)
+    # Instanciation des variables statiques pour la voix
     FORMAT = paInt16           # taille des echantillons
     CHANNELS = 1               # nombre de canaux : 1:(mono)
     FREQUENCE = 44100          # fréquence d'échantillonnage 
@@ -533,19 +525,16 @@ class Utilisateur:
         self.__mdp: str
         self.__ip_serv: str
         self.__stop_appel: bool
-        
-        self.__ihm_auth: IHM_Authentification # TODO à supprimer ?
         self.__ihm_appel: IHM_Appel
-        self.__ihm_contacts: IHM_Contacts # TODO à supprimer ?
         
-        self.__flux_emission:PyAudio.Stream      # flux audio émis # type: ignore car VSCode ne reconnait pas Stream comme type
-        self.__flux_reception:PyAudio.Stream     # flux audio reçu # type: ignore car VSCode ne reconnait pas Stream comme type
-        self.__audio: PyAudio                    # connecteur audio
+        self.__flux_emission:PyAudio.Stream     # flux audio émis # type: ignore car VSCode ne reconnait pas Stream comme type
+        self.__flux_reception:PyAudio.Stream    # flux audio reçu # type: ignore car VSCode ne reconnait pas Stream comme type
+        self.__audio: PyAudio                   # connecteur audio
         
         # Déclaration des sockets
-        self.__socket_envoi: socket
-        self.__socket_reception: socket # TODO renommer en self.__socket_reception_msg
-        self.__socket_reception_voix: socket
+        self.__socket_envoi: socket             # socket d'envoi des messages et de la voix (UDP)
+        self.__socket_reception_sig: socket     # socket de réception des messages de signalisation (UDP)
+        self.__socket_reception_voix: socket    # socket de réception de la voix (UDP) 
         
         # Instanciation des attributs
         self.__login = login
@@ -558,10 +547,10 @@ class Utilisateur:
         self.__socket_envoi.bind(("", 5000))
         
         # Création du socket de réception de messages (UDP)
-        self.__socket_reception = socket(AF_INET, SOCK_DGRAM)
-        self.__socket_reception.bind(("", 5101))
+        self.__socket_reception_sig = socket(AF_INET, SOCK_DGRAM)
+        self.__socket_reception_sig.bind(("", 5101))
         
-        # Création du socket de réception de la voix (UDP)
+        # Création du socket de réception de la voix (UDP) :
         # Le (re-)création du socket de réception de la voix
         # est nécessaire pour chaque nouveau appel, donc elle se fait
         # dans la méthode demarrer_appel() de la classe Utilisateur
@@ -588,7 +577,7 @@ class Utilisateur:
         except timeout:
             # Fermer les sockets ouverts
             self.__socket_envoi.close()
-            self.__socket_reception.close()
+            self.__socket_reception_sig.close()
             
             # Afficher un message d'erreur dans la console et relancer l'IHM d'authentification en affichant un message d'erreur
             print("Timed out : Vérifiez l'IP renseignée et si le serveur est bien lancé et accessible.")
@@ -603,7 +592,7 @@ class Utilisateur:
         elif reponse_serv.startswith("AUTH REJECT"):
             # Fermer les sockets ouverts
             self.__socket_envoi.close()
-            self.__socket_reception.close()
+            self.__socket_reception_sig.close()
             
             # Afficher un message d'erreur dans la console et relancer l'IHM d'authentification en affichant un message d'erreur
             print("L'authentification a échouée :", reponse_serv)
@@ -613,7 +602,7 @@ class Utilisateur:
         else:
             # Fermer les sockets ouverts
             self.__socket_envoi.close()
-            self.__socket_reception.close()
+            self.__socket_reception_sig.close()
             
             # Afficher un message d'erreur dans la console et relancer l'IHM d'authentification en affichant un message d'erreur
             print("Erreur inattendue :", reponse_serv)
@@ -628,7 +617,7 @@ class Utilisateur:
         self.__socket_envoi.sendto(tab_octets, (self.__ip_serv, 6100))
         
     def recevoir_message(self)-> str:
-        tab_octets = self.__socket_reception.recv(255)
+        tab_octets = self.__socket_reception_sig.recv(255)
         msg = tab_octets.decode(encoding="utf-8")
         return msg
     
@@ -839,7 +828,7 @@ class Utilisateur:
         return self.__login
     
     def set_timeout_socket_reception(self, timeout:float=60)-> None:
-        self.__socket_reception.settimeout(timeout)
+        self.__socket_reception_sig.settimeout(timeout)
         
     def set_attribut_ihm_appel(self, ihm_appel:IHM_Appel)-> None:
         """Permet de définir l'attribut ihm_appel de la classe Utilisateur.

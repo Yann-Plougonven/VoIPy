@@ -247,11 +247,9 @@ class Service_Signalisation:
         
         # Récupération du login de l'utilisateur appelant et vérifier si l'IP de l'appellant est authentifié
         requete = f"SELECT login FROM utilisateurs WHERE ip = '{ip_appelant}' AND online = 1;"
-        login_appelant = self.requete_BDD(requete)[0][0] # (TODO simplfier ?) Récupération du login de l'appellant dans la liste retournée par la BDD
+        login_appelant = self.requete_BDD(requete)[0][0]
                 
         if login_appelant: # Si un appelant est bien authentifié sur l'IP du client solicitant le serveur
-            # TODO vérifier si l'utilisateur appelé n'est pas déjà appellé par quelqu'un d'autre (à part si on fait de la conférence ?)
-            # TODO vérifier que plusieurs utilisateurs peuvent appeler en même temps (2 appels en parallèle)
 
             # Récupération du login de l'utilisateur appelé
             login_appele = msg[13:] # suppression de l'entête "CALL REQUEST " (13 caractères) du message reçu
@@ -272,14 +270,13 @@ class Service_Signalisation:
             pass
 
     def lancer_appel(self, ip_appele:str, msg: str)-> None:
-        # Le message reçu est de la forme "CALL ACCEPT login_appelant-login_appele_acceptant_l_appel"
-        # TODO vérifier que les utilisateurs sont bien authentifiés ?
         login_appelant: str
         ip_appelant: str
         login_appele: str
         port_reception_appelant: int
         port_reception_appele1: int
         
+        # Le message reçu est de la forme "CALL ACCEPT login_appelant-login_appele_acceptant_l_appel"
         # Isolement des logins des deux utilisateurs de l'en-tête "CALL ACCEPT " (12 caractères) du message
         msg = msg[12:]
         
@@ -395,7 +392,7 @@ class Appel(Thread):
         self.__socket_reception_appelant: socket    # socket de réception du flux audio de l'appelant
         self.__socket_reception_appele1: socket     # socket de réception du flux audio de l'appelé 1
         
-        # Initialisation des attributs (TODO c'est pas très propre, à revoir ?)
+        # Initialisation des attributs
         self.__stop_thread_event = Event()
         self.__ip_appelant = correspondants[0][0]
         self.__ip_appele1 = correspondants[1][0]
@@ -441,7 +438,7 @@ class Appel(Thread):
                 # Envoi des paquets audio envoyés par l'appelé 1 à l'appelant
                 self.__socket_emission.sendto(data, (self.__ip_appelant, 5001))
             
-        except : # TODO gérer d'autre manière de quitter l'appel côté serveur ?
+        except :
             pass
         
         finally:
