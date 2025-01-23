@@ -16,7 +16,7 @@ from pydub.playback import play
 
 # TODO nettoyer les fichiers inutiles git
 
-class IHM_Authentification(Tk,):
+class IHM_Authentification(Tk):
     # Utilisation du protocole UDP : on n'établit pas de connexion avec le serveur,
     # le client lui indique simplement sa présence en s'authentifiant
     def __init__(self, msg_erreur:str="")-> None:
@@ -106,7 +106,7 @@ class IHM_Authentification(Tk,):
         self.destroy()
 
 
-class IHM_Contacts(Tk,):
+class IHM_Contacts(Tk):
     def __init__(self, utilisateur)-> None:
         Tk.__init__(self)
         
