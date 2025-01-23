@@ -1,0 +1,57 @@
+# Fichier de logs du serveur VoIPy
+[23/01/25 16:35:40] [INFO] [SQL] UPDATE utilisateurs SET online = 0, oncall = 0;
+[23/01/25 16:35:40] [INFO] Le serveur VoIPy a démarré correctement et est prêt.
+[23/01/25 16:35:49] [FROM 127.0.0.1:5000] AUTH REQUEST Yann:lannion
+[23/01/25 16:35:49] [INFO] [SQL] SELECT * FROM utilisateurs WHERE login = 'Yann' AND password = 'lannion';
+[23/01/25 16:35:49] [INFO] Authentification réussie pour Yann sur le poste 127.0.0.1.
+[23/01/25 16:35:49] [INFO] [SQL] UPDATE utilisateurs SET ip = '127.0.0.1', online = 1, oncall = 0 WHERE login = 'Yann';
+[23/01/25 16:35:49] [TO 127.0.0.1:5101] AUTH ACCEPT
+[23/01/25 16:35:49] [FROM 127.0.0.1:5000] CONTACTS REQUEST
+[23/01/25 16:35:49] [INFO] [SQL] SELECT * FROM utilisateurs WHERE ip = '127.0.0.1' AND online = 1;
+[23/01/25 16:35:49] [INFO] [SQL] SELECT login, online, oncall FROM utilisateurs;
+[23/01/25 16:35:49] [TO 127.0.0.1:5101] CONTACTS LIST {"Yann": ["online", "available"], "Tugdual": ["offline", "available"], "John Doe": ["offline", "available"], "Alice": ["offline", "available"], "Bob": ["offline", "available"]}
+[23/01/25 16:37:10] [FROM 192.168.182.108:5000] AUTH REQUEST Tugdual:mauvaismdp
+[23/01/25 16:37:10] [INFO] [SQL] SELECT * FROM utilisateurs WHERE login = 'Tugdual' AND password = 'mauvaismdp';
+[23/01/25 16:37:10] [INFO] Authentification REFUSÉE pour Tugdual sur le poste 192.168.182.108.
+[23/01/25 16:37:10] [TO 192.168.182.108:5101] AUTH REJECT
+[23/01/25 16:37:25] [FROM 192.168.182.108:5000] AUTH REQUEST Tugdual:lannion
+[23/01/25 16:37:25] [INFO] [SQL] SELECT * FROM utilisateurs WHERE login = 'Tugdual' AND password = 'lannion';
+[23/01/25 16:37:25] [INFO] Authentification réussie pour Tugdual sur le poste 192.168.182.108.
+[23/01/25 16:37:25] [INFO] [SQL] UPDATE utilisateurs SET ip = '192.168.182.108', online = 1, oncall = 0 WHERE login = 'Tugdual';
+[23/01/25 16:37:25] [TO 192.168.182.108:5101] AUTH ACCEPT
+[23/01/25 16:37:26] [FROM 192.168.182.108:5000] CONTACTS REQUEST
+[23/01/25 16:37:26] [INFO] [SQL] SELECT * FROM utilisateurs WHERE ip = '192.168.182.108' AND online = 1;
+[23/01/25 16:37:26] [INFO] [SQL] SELECT login, online, oncall FROM utilisateurs;
+[23/01/25 16:37:26] [TO 192.168.182.108:5101] CONTACTS LIST {"Yann": ["online", "available"], "Tugdual": ["online", "available"], "John Doe": ["offline", "available"], "Alice": ["offline", "available"], "Bob": ["offline", "available"]}
+[23/01/25 16:37:29] [FROM 127.0.0.1:5000] CONTACTS REQUEST
+[23/01/25 16:37:29] [INFO] [SQL] SELECT * FROM utilisateurs WHERE ip = '127.0.0.1' AND online = 1;
+[23/01/25 16:37:29] [INFO] [SQL] SELECT login, online, oncall FROM utilisateurs;
+[23/01/25 16:37:29] [TO 127.0.0.1:5101] CONTACTS LIST {"Yann": ["online", "available"], "Tugdual": ["online", "available"], "John Doe": ["offline", "available"], "Alice": ["offline", "available"], "Bob": ["offline", "available"]}
+[23/01/25 16:37:33] [FROM 127.0.0.1:5000] CALL REQUEST Tugdual
+[23/01/25 16:37:33] [INFO] [SQL] SELECT login FROM utilisateurs WHERE ip = '127.0.0.1' AND online = 1;
+[23/01/25 16:37:33] [INFO] [SQL] SELECT ip FROM utilisateurs WHERE login = 'Tugdual';
+[23/01/25 16:37:33] [TO 192.168.182.108:5101] CALL REQUEST Yann
+[23/01/25 16:37:39] [FROM 192.168.182.108:5000] CALL ACCEPT Yann-Tugdual
+[23/01/25 16:37:39] [INFO] [SQL] SELECT ip FROM utilisateurs WHERE login = 'Yann';
+[23/01/25 16:37:39] [INFO] [SQL] UPDATE utilisateurs SET oncall = 1 WHERE login = 'Yann' OR login = 'Tugdual';
+[23/01/25 16:37:39] [TO 127.0.0.1:5101] CALL START 6001
+[23/01/25 16:37:39] [TO 192.168.182.108:5101] CALL START 6002
+[23/01/25 16:37:44] [FROM 127.0.0.1:5000] CALL END REQUEST
+[23/01/25 16:37:44] [INFO] [SQL] SELECT * FROM utilisateurs WHERE ip = '127.0.0.1' AND online = 1;
+[23/01/25 16:37:44] [INFO] Information des clients ['127.0.0.1', '192.168.182.108'] de la fin de l'appel.
+[23/01/25 16:37:44] [TO 127.0.0.1:5101] CALL END
+[23/01/25 16:37:44] [TO 192.168.182.108:5101] CALL END
+[23/01/25 16:37:44] [INFO] [SQL] UPDATE utilisateurs SET oncall = 0 WHERE ip = '127.0.0.1' OR ip = '192.168.182.108';
+[23/01/25 16:37:44] [INFO] Fin de l'appel entre 127.0.0.1 et 192.168.182.108.
+[23/01/25 16:37:45] [FROM 127.0.0.1:5000] CONTACTS REQUEST
+[23/01/25 16:37:45] [INFO] [SQL] SELECT * FROM utilisateurs WHERE ip = '127.0.0.1' AND online = 1;
+[23/01/25 16:37:45] [INFO] [SQL] SELECT login, online, oncall FROM utilisateurs;
+[23/01/25 16:37:45] [TO 127.0.0.1:5101] CONTACTS LIST {"Yann": ["online", "available"], "Tugdual": ["online", "available"], "John Doe": ["offline", "available"], "Alice": ["offline", "available"], "Bob": ["offline", "available"]}
+[23/01/25 16:37:46] [FROM 192.168.182.108:5000] CONTACTS REQUEST
+[23/01/25 16:37:46] [INFO] [SQL] SELECT * FROM utilisateurs WHERE ip = '192.168.182.108' AND online = 1;
+[23/01/25 16:37:46] [INFO] [SQL] SELECT login, online, oncall FROM utilisateurs;
+[23/01/25 16:37:46] [TO 192.168.182.108:5101] CONTACTS LIST {"Yann": ["online", "available"], "Tugdual": ["online", "available"], "John Doe": ["offline", "available"], "Alice": ["offline", "available"], "Bob": ["offline", "available"]}
+[23/01/25 16:38:00] [FROM 127.0.0.1:5000] LOGOUT Yann
+[23/01/25 16:38:00] [INFO] [SQL] UPDATE utilisateurs SET online = 0, oncall = 0 WHERE login = 'Yann' AND ip = '127.0.0.1';
+[23/01/25 16:38:04] [FROM 192.168.182.108:5000] LOGOUT Tugdual
+[23/01/25 16:38:04] [INFO] [SQL] UPDATE utilisateurs SET online = 0, oncall = 0 WHERE login = 'Tugdual' AND ip = '192.168.182.108';

@@ -14,15 +14,16 @@ import os.path
 class Service_Signalisation:
     def __init__(self) -> None:
         # Déclaration des attributs
-        self.__socket_ecoute: socket
-        self.__socket_emission: socket
-        self.__liste_appels: list[Appel] = list()
-        self.__liste_ports_reception_utilises: list[int] = list()
+        self.__socket_ecoute: socket                        # socket d'écoute du flux de signalisation (port 6100)
+        self.__socket_emission: socket                      # socket d'émission du flux de signalisation (port 6000)
+        self.__liste_appels: list[Appel]                    # liste des appels en cours
+        self.__liste_ports_reception_utilises: list[int]    # liste des ports de réception côté serveur utilisés
+        self.__dossier_de_travail: os.path                  # dossier de travail (nécessaire pour la BDD et les logs)
         
-        # Réinitialiser le statut des utilisateurs dans la BDD à chaque démarrage du serveur (online = 0 et oncall = 0),
-        # Au cas où le serveur ou un client auraient été arrêtés brutalement
-        requete_bdd = "UPDATE utilisateurs SET online = 0, oncall = 0;"
-        self.requete_BDD(requete_bdd)
+        # Initialisation des attributs
+        self.__liste_appels = list()
+        self.__liste_ports_reception_utilises = list()
+        self.__dossier_de_travail = os.path.dirname(os.path.abspath(__file__))
         
         # Initialisation du socket écoute du flux de signalisation (port 6100)
         self.__socket_ecoute = socket(family=AF_INET, type=SOCK_DGRAM)
@@ -32,6 +33,12 @@ class Service_Signalisation:
         self.__socket_emission = socket(family=AF_INET, type=SOCK_DGRAM)
         self.__socket_emission.bind(("", 6000))
         
+        # Réinitialiser le statut des utilisateurs dans la BDD à chaque démarrage du serveur (online = 0 et oncall = 0),
+        # Au cas où le serveur ou un client auraient été arrêtés brutalement
+        requete_bdd = "UPDATE utilisateurs SET online = 0, oncall = 0;"
+        self.requete_BDD(requete_bdd)
+        
+        # Lancement du service d'écoute de la signalisation
         self.ecouter_signalisation()
 
     def ecouter_signalisation(self) -> None:
@@ -40,6 +47,8 @@ class Service_Signalisation:
         addr: set
         ip_client: str
         port_client: int
+        
+        self.log("[INFO] Le serveur VoIPy a démarré correctement et est prêt.")
         
         while True:
             # Suppression du message précédent
@@ -51,7 +60,7 @@ class Service_Signalisation:
             
             # Enregistrement des coordonnées du client
             ip_client, port_client = addr
-            print(f"[{self.heure()}] [FROM {ip_client}:{port_client}] {msg}")
+            self.log(f"[FROM {ip_client}:{port_client}] {msg}")
             
             # Traitement du message
             self.traiter_signalisation(ip_client, msg)
@@ -86,17 +95,36 @@ class Service_Signalisation:
         
         tab_octets = msg.encode(encoding="utf-8")
         self.__socket_emission.sendto(tab_octets, (ip_client, port_client))
-        print(f"[{self.heure()}] [TO {ip_client}:{port_client}] {msg}")
-        
-    def heure(self)-> str:
-        # TODO remplacer cette fonction par une autre qui prend en paramètre le msg à log,
-        # lui ajoute l'heure au début, enregistre le tout dans un fichier de log et affiche le tout dans la console
-        return datetime.now().strftime("%d/%m/%y %H:%M:%S")
+        self.log(f"[TO {ip_client}:{port_client}] {msg}")
     
+    def log(self, msg: str)-> None:
+        jour_heure: str
+        chemin_logs: str
+        
+        # Récupération de la date et l'heure (str)
+        jour_heure = datetime.now().strftime("%d/%m/%y %H:%M:%S")
+        
+        # Création du message à loguer
+        msg = f"[{jour_heure}] {msg}"
+        
+        # Tentative d'enregistrement du message dans le fichier de log du serveur
+        try:
+            # Définition du chemin absolu de la base de données (nécessaire, sinon elle ne s'ouvre pas)
+            chemin_logs = os.path.join(self.__dossier_de_travail, "logs", "server.log")
+            
+            # Écriture du message dans le fichier de logs
+            with open(chemin_logs, mode="a", encoding="utf-8") as fichier_log:
+                fichier_log.write(msg + "\n")
+                
+        except Exception as e:
+            print(f"[{jour_heure}] [AVERTISSEMENT] Impossible d'écrire dans le fichier de logs : {e}")
+        
+        # Affichage du message de log dans la console
+        print(msg)
+            
     def requete_BDD(self, requete:str)-> str:
         connecteur:sqlite3.Connection
         curseur:sqlite3.Cursor
-        dossier_de_travail: str
         nom_bdd: str
         chemin_bdd: str
         reponse_bdd: str
@@ -105,11 +133,10 @@ class Service_Signalisation:
         nom_bdd = "utilisateurs.sqlite3"
         
         # Définition du chemin absolu de la base de données (nécessaire, sinon elle ne s'ouvre pas)
-        dossier_de_travail = os.path.dirname(os.path.abspath(__file__))
-        chemin_bdd = os.path.join(dossier_de_travail, "bdd", nom_bdd)
+        chemin_bdd = os.path.join(self.__dossier_de_travail, "bdd", nom_bdd)
                 
         # Connexion à la BDD
-        print(f"[{self.heure()}] [INFO] [SQL] {requete}")
+        self.log(f"[INFO] [SQL] {requete}")
         connecteur = sqlite3.connect(chemin_bdd)
         curseur = connecteur.cursor()
         
@@ -119,7 +146,7 @@ class Service_Signalisation:
             reponse_bdd = curseur.fetchall()
         
         except Exception as e:
-            print(f"[{self.heure()}] [ERREUR] [SQL] {e}")
+            self.log(f"[ERREUR] [SQL] {e}")
         
         connecteur.commit()
         connecteur.close()
@@ -141,7 +168,7 @@ class Service_Signalisation:
         
         # Si le couple login:mdp existe dans la BDD (authentification réussie) :
         if reponse_bdd:
-            print(f"[{self.heure()}] [INFO] Authentification réussie pour {login} sur le poste {ip_client}.")
+            self.log(f"[INFO] Authentification réussie pour {login} sur le poste {ip_client}.")
             
             # Mettre à jour l'IP du client et son statut (online) dans la BDD
             requete_bdd = f"UPDATE utilisateurs SET ip = '{ip_client}', online = 1, oncall = 0 WHERE login = '{login}';"
@@ -152,7 +179,7 @@ class Service_Signalisation:
             
         # Si le couple login:mdp n'existe pas dans la BDD (authentification refusée) :
         else:
-            print(f"[{self.heure()}] [INFO] Authentification REFUSÉE pour {login} sur le poste {ip_client}.")
+            self.log(f"[INFO] Authentification REFUSÉE pour {login} sur le poste {ip_client}.")
             self.envoyer_signalisation(ip_client, "AUTH REJECT")
     
     def is_ip_authentifiée(self, ip_client:str)-> bool:
@@ -308,7 +335,7 @@ class Service_Signalisation:
             ip_appelant = self.requete_BDD(requete_bdd)[0][0]
             
             # Informer l'appelant que l'appel a été refusé
-            print(f"[{self.heure()}] [INFO] Information de {login_appelant} que {ip_appele} a refusé son appel.")
+            self.log(f"[INFO] Information de {login_appelant} que {ip_appele} a refusé son appel.")
             self.envoyer_signalisation(ip_appelant, "CALL DENY")
     
     def terminer_appel(self, ip_client:str)-> None:
@@ -330,7 +357,7 @@ class Service_Signalisation:
                 # Si l'IP du l'utilisateur raccrochant est dans la liste des IP des clients de l'appel...
                 if ip_client in ip_clients_appel: 
                     
-                    print(f"[{self.heure()}] [INFO] Information des clients {[ip_client for ip_client in ip_clients_appel]} de la fin de l'appel.")
+                    self.log(f"[INFO] Information des clients {[ip_client for ip_client in ip_clients_appel]} de la fin de l'appel.")
                     
                     # Informer chaque correspondant de la fin de l'appel                   
                     for ip_client in ip_clients_appel:
@@ -347,6 +374,9 @@ class Service_Signalisation:
                     # Mettre à jour le statut des utilisateurs (oncall = 0) dans la BDD
                     requete_bdd = f"UPDATE utilisateurs SET oncall = 0 WHERE ip = '{ip_clients_appel[0]}' OR ip = '{ip_clients_appel[1]}';"
                     self.requete_BDD(requete_bdd)
+                    
+                    # Loguer la fin de l'appel
+                    self.log(f"[INFO] Fin de l'appel entre {ip_clients_appel[0]} et {ip_clients_appel[1]}.")
 
 
 class Appel(Thread):
@@ -417,7 +447,6 @@ class Appel(Thread):
         finally:
             self.__socket_reception_appelant.close()
             self.__socket_reception_appele1.close()
-            print("Fin de l'appel.") # TODO ajouter l'heure dans les logs
             
     def terminer_appel(self) -> None:
         self.__socket_reception_appelant.close()
