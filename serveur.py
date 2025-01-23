@@ -7,6 +7,7 @@ from pyaudio import *
 from socket import *
 from threading import *
 import sqlite3
+import json
 from datetime import datetime
 import os.path
 
@@ -193,7 +194,8 @@ class Service_Signalisation:
     def envoyer_liste_contacts(self, ip_client:str)-> None:
         requete_bdd: str
         reponse_bdd: str
-        dict_contacts: dict
+        dict_contacts: dict[str: list[str]]
+        json_contacts: json
         
         if self.is_ip_authentifiée(ip_client):
             
@@ -203,8 +205,12 @@ class Service_Signalisation:
                         
             # Conversion de la réponse en un dictionnaire
             dict_contacts = {login: ("online" if online else "offline", "oncall" if oncall else "available") for login, online, oncall in reponse_bdd}
-                        
-            self.envoyer_signalisation(ip_client, f"CONTACTS LIST {dict_contacts}")  
+            
+            # Sérialisation du dictionnaire en JSON
+            json_contacts = json.dumps(dict_contacts)
+            
+            # Envoi du fichier json au client
+            self.envoyer_signalisation(ip_client, f"CONTACTS LIST {json_contacts}")  
             
     def requete_appel(self, ip_appelant:str, msg: str)-> None:
         requete: str

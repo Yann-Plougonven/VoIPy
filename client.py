@@ -11,6 +11,7 @@ from threading import *
 from time import sleep
 from tkinter import ttk # TODO à supprimer quand on aura retiré la liste déroulante de contacts
 import pyaudio
+import json
 from pydub import AudioSegment
 from pydub.playback import play
 
@@ -160,30 +161,27 @@ class IHM_Contacts(Tk):
         est dû au fait que la liste des contacts peut être actualisée par l'utilisateur
         """
         # Initialisation des variables/attributs
-        str_contacts: str
         contact: str
         widget: Widget
-        self.__dict_contacts: dict[str]
+        dict_contacts: dict[str: list[str]]
         
         # Arrêt de l'écoute de requête d'appel, si elle est déjà lancée, pour éviter les interférences
         self.stopper_deamon_ecoute_requetes_appel()
         
-        # Récupérer la liste des contacts
-        str_contacts = self.__utilisateur.actualiser_liste_contacts() # obtenir les contacts sous forme de chaine
-        str_contacts = str_contacts[13:] # supprimer l'entête "CONTACTS LIST" (13 premiers caractères de la chaine)
-        self.__dict_contacts = eval(str_contacts) # convertir la chaine en dicts de contacts liés à leur statut (online, offline) et (oncall, available)
+        # Récupérer la liste des contacts (format : dictionnaire python)
+        dict_contacts = self.__utilisateur.actualiser_liste_contacts()
         
         # Supprimer les anciens boutons de la liste de contacts
         for widget in self.__frame_contacts.winfo_children():
             widget.destroy()
         
         # Ajouter les contacts sous forme de boutons
-        for contact in self.__dict_contacts.keys():          
+        for contact in dict_contacts.keys():          
             btn_contact = Button(self.__frame_contacts, text=contact, font=("Helvetica", 14), command=lambda correspondant=contact: self.appeler_correspondant(correspondant))
             btn_contact.pack(pady=4, fill=X)
             
             # Si le contact est en ligne, mais pas en appel, le bouton est vert
-            if "online" in self.__dict_contacts[contact] and "available" in self.__dict_contacts[contact]:
+            if "online" in dict_contacts[contact] and "available" in dict_contacts[contact]:
                 btn_contact.configure(bg="PaleGreen1")
 
                 # Si le contact est le client lui même, le bouton est désactivé (il ne peut pas s'appeller lui-même)
@@ -191,7 +189,7 @@ class IHM_Contacts(Tk):
                     btn_contact.configure(state=DISABLED)
             
             # Si le contact est en ligne, mais en appel, le bouton est orange et désactivé
-            elif "online" in self.__dict_contacts[contact] and "oncall" in self.__dict_contacts[contact]:
+            elif "online" in dict_contacts[contact] and "oncall" in dict_contacts[contact]:
                 btn_contact.configure(bg="light goldenrod")
                 btn_contact.configure(state=DISABLED)
             
@@ -636,6 +634,8 @@ class Utilisateur:
     
     def actualiser_liste_contacts(self)-> str:
         reponse_serv_contacts: str
+        contacts_json: json
+        dict_contacts: dict[str]
         reponse_serv_contacts = ""
         
         print("Tentative d'actualisation de la liste de contacts...")
@@ -643,16 +643,23 @@ class Utilisateur:
         # Demander la liste des contacts au serveur
         self.envoyer_message(f"CONTACTS REQUEST")
         
-        # Tentative de reception de la liste des contacts
+        # Tentative de reception de la réponse du serveur
         try:
             reponse_serv_contacts = self.recevoir_message()
         except Exception as e:
             print(f"Erreur lors de la réception de la liste des contacts : {e}")
         
-        # Si la liste des contacts a été récupérée
+        # Si la liste des contacts a été récupérée :
         if reponse_serv_contacts.startswith("CONTACTS LIST"):
-            print("La liste de contacts a été récupérée.")
-        
+            
+            # Récupérer les données JSON dans la réponse du serveur
+            contacts_json = reponse_serv_contacts[14:] # suppression de l'entête "CONTACTS LIST " de 14 caractères
+            
+            # Désérialiser le JSON en dictionnaire
+            dict_contacts = json.loads(contacts_json)
+
+            print("La liste de contacts a été récupérée et extraite de la réponse du serveur.")
+            
         # Si la liste des contacts n'a pas pu être récupérée, 
         # rappeler récursivement la méthode jusqu'à ce que la liste des contacts soit récupérée.
         # Cette solution est un peu "bourrine" (elle contourne juste le problème), mais elle est simple et efficace.
@@ -660,7 +667,7 @@ class Utilisateur:
             print("Erreur lors de la réception de la liste des contacts.")
             reponse_serv_contacts = self.actualiser_liste_contacts()
         
-        return reponse_serv_contacts
+        return dict_contacts
     
     def envoyer_requete_appel(self, correspondant:str)-> tuple[bool, int]:
         reponse_serv_requete_demarrer_appel:str
