@@ -882,11 +882,13 @@ class Utilisateur:
                 pass
             
     def raccrocher(self)-> None:
-        """Envoyer une requête de fin d'appel ""ALL END REQUEST" au serveur.
+        """Raccrocher : envoyer une requête de fin d'appel ""CALL END REQUEST" au serveur.
         """
         self.envoyer_message("CALL END REQUEST")
             
-    def terminer_appel(self, ouvrir_ihm_contacts:bool)-> None:      
+    def terminer_appel(self, ouvrir_ihm_contacts:bool)-> None:  
+        """Terminer l'appel à la demande du serveur
+        (fermer les flux audio, et le socket de réception de la voix, etc.)"""    
         print("Le serveur informe tous les correspondants de la fin de l'appel.")
             
         # Arrêter la boucle de l'appel
@@ -923,9 +925,19 @@ class Utilisateur:
             IHM_Contacts(self)
         
     def get_login(self)-> str:
+        """Retourne le login de l'utilisateur.
+
+        Returns:
+            str: login de l'utilisateur
+        """
         return self.__login
     
     def set_timeout_socket_reception(self, timeout:float=60)-> None:
+        """Modifie le timeout du socket de réception de la signalisation.
+
+        Args:
+            timeout (float, optional): timeout en secondes. Defaults to 60.
+        """
         self.__socket_reception_sig.settimeout(timeout)
         
     def set_attribut_ihm_appel(self, ihm_appel:IHM_Appel)-> None:
