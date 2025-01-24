@@ -13,6 +13,11 @@ import os.path
 
 class Service_Signalisation:
     def __init__(self) -> None:
+        """Constructeur de la classe Service_Signalisation.
+        Initialisation des sockets d'écoute et d'émission du flux de signalisation, ect.
+        
+        Cette classe est chargée de la reception, du traitement et de l'envoi de la signalisation.
+        """
         # Déclaration des attributs
         self.__socket_ecoute: socket                        # socket d'écoute du flux de signalisation (port 6100)
         self.__socket_emission: socket                      # socket d'émission du flux de signalisation (port 6000)
@@ -42,6 +47,9 @@ class Service_Signalisation:
         self.ecouter_signalisation()
 
     def ecouter_signalisation(self) -> None:
+        """Boucle d'écoute permanente des messages de signalisation.
+        Quand un message est reçu, la méthode traiter_signalisation() est appelée.
+        """
         tab_octets: bytearray
         msg: str
         addr: set
@@ -66,7 +74,13 @@ class Service_Signalisation:
             self.traiter_signalisation(ip_client, msg)
       
     def traiter_signalisation(self, ip_client:str, msg: str)-> None:
-        # Traitement du message
+        """Traite les messages de signalisation reçus.
+        Appelle la méthode correspondante à chaque type de message reçu.
+
+        Args:
+            ip_client (str): ip du client ayant envoyé le message
+            msg (str): message envoyé par le client
+        """
         if msg.startswith("AUTH REQUEST"):
             self.authentifier(ip_client, msg)
             
@@ -89,6 +103,12 @@ class Service_Signalisation:
             self.terminer_appel(ip_client)
             
     def envoyer_signalisation(self, ip_client:str, msg: str)-> None:
+        """Envoie un message de signalisation à un client.
+
+        Args:
+            ip_client (str): adresse IP du client à qui envoyer le message
+            msg (str): message à envoyer
+        """
         tab_octets: bytearray
         port_client: int
         port_client = 5101
@@ -98,6 +118,11 @@ class Service_Signalisation:
         self.log(f"[TO {ip_client}:{port_client}] {msg}")
     
     def log(self, msg: str)-> None:
+        """Ajoute l'heure au début du message de log, enregistre le message et l'affiche dans la console.
+
+        Args:
+            msg (str): évenement à loguer
+        """
         jour_heure: str
         chemin_logs: str
         
@@ -123,6 +148,14 @@ class Service_Signalisation:
         print(msg)
             
     def requete_BDD(self, requete:str)-> str:
+        """Connecte le programme à la base de données, exécute la requête SQL et retourne la réponse.
+
+        Args:
+            requete (str): requette SQL à exécuter
+
+        Returns:
+            str: résultat de la requête SQL
+        """
         connecteur:sqlite3.Connection
         curseur:sqlite3.Cursor
         nom_bdd: str
@@ -154,6 +187,12 @@ class Service_Signalisation:
         return reponse_bdd
              
     def authentifier(self, ip_client:str, msg: str)-> None:
+        """Authentifie un utilisateur en vérifiant son login et son mot de passe dans la BDD.
+
+        Args:
+            ip_client (str): ip du client demandant à être authentifié
+            msg (str): message de demande d'authentification
+        """
         login: str
         mdp: str
         requete_bdd: str
@@ -208,6 +247,13 @@ class Service_Signalisation:
         return is_authentifiee
             
     def deconnecter(self, ip_client:str, msg: str)-> None:
+        """Déconnecter à utilisateur à sa demande.
+        Met à jour la BDD du serveur en conséquence.
+
+        Args:
+            ip_client (str): ip du client à déconnecter
+            msg (str): message de demande de déconnexion en provenance du client
+        """
         login: str
         requete_bdd: str
         
@@ -219,11 +265,18 @@ class Service_Signalisation:
         self.requete_BDD(requete_bdd)
     
     def envoyer_liste_contacts(self, ip_client:str)-> None:
+        """Envoyer la liste des contacts et de leur statut à l'utilisateur qui en fait la demande.
+        La liste est récupérée dans la BDD et envoyée au client sous forme de fichier JSON.
+
+        Args:
+            ip_client (str): ip du client faisant la demande de la liste des contacts
+        """
         requete_bdd: str
         reponse_bdd: str
         dict_contacts: dict[str: list[str]]
         json_contacts: json
         
+        # Si un client est authentifié sur l'IP du client solicitant le serveur
         if self.is_ip_authentifiée(ip_client):
             
             # Récupération de la liste des contacts et de leur statut dans la BDD
@@ -240,6 +293,13 @@ class Service_Signalisation:
             self.envoyer_signalisation(ip_client, f"CONTACTS LIST {json_contacts}")  
             
     def requete_appel(self, ip_appelant:str, msg: str)-> None:
+        """Quand un utilisateur demande à appeller un autre utilisateur,
+        envoyer une requête d'appel à l'utilisateur appelé.
+
+        Args:
+            ip_appelant (str): adresse ip de l'utilisateur appelant
+            msg (str): message de demande d'appel reçu par le serveur
+        """
         requete: str
         login_appelant: str
         login_appele: str
@@ -264,12 +324,19 @@ class Service_Signalisation:
             # Fin de la fonction d'envoi de la requête d'appel,
             # la réponse "CALL ACCEPT" ou "CALL DENY" sera traitée dans traiter_signalisation() puis lancer_appel(),
             # Afin de ne pas bloquer le fonctionnement du serveur en attendant la réponse de l'appelé.
-        
-        else: # Si l'IP de l'appellant n'est pas authentifié
-            # self.envoyer_signalisation(ip_appelant, "CALL REJECT") ?
-            pass
 
     def lancer_appel(self, ip_appele:str, msg: str)-> None:
+        """Lancer un appel entre deux utilisateurs, dans un objet appel dédié, 
+        fonctionnant dans un thread pour ne pas bloquer le service signalisation.
+        Définit un port de réception de la voix pour chaque correspondant.
+        Informe les correspondants du début de l'appel et leur fourni les ports de réception de la voix côté serveur.
+        
+        Gére la création de plusieurs appels en parrallèle.
+
+        Args:
+            ip_appele (str): ip de l'utilisateur appelé
+            msg (str): message utilisateur de réponse à la demande d'appel reçu par le serveur
+        """
         login_appelant: str
         ip_appelant: str
         login_appele: str
@@ -318,6 +385,12 @@ class Service_Signalisation:
         self.__liste_appels[-1].start() # démarrer le dernier objet appel ajouté à la liste    
 
     def rejeter_appel(self, ip_appele:str, msg: str)-> None:
+        """Refuser un appel entrant, à la demande du client appelé.
+
+        Args:
+            ip_appele (str): adresse ip de l'utilisateur appelé
+            msg (str): message de refus de l'appel reçu par le serveur
+        """
         login_appelant: str   # Login de l'appellant à informer du rejet de l'appel
         ip_appelant: str      # IP de l'appellant
         
@@ -336,6 +409,11 @@ class Service_Signalisation:
             self.envoyer_signalisation(ip_appelant, "CALL DENY")
     
     def terminer_appel(self, ip_client:str)-> None:
+        """Termine un appel en cours
+
+        Args:
+            ip_client (str): adresse ip de l'utilisateur ayant raccroché l'appel
+        """
         appel: Appel                # Objet appel correspondant à l'appel terminé
         ip_clients_appel: list[str] # liste des IP des clients de l'appel
         ip_client:str               # une IP de client
@@ -378,6 +456,13 @@ class Service_Signalisation:
 
 class Appel(Thread):
     def __init__(self, socket_emission, correspondants:list[list[str, int]]) -> None:
+        """Constructeur de la classe Appel.
+        Une classe Appel est un thread créé pour la gestion d'un appel.
+
+        Args:
+            socket_emission (socket): socket d'émission partagé entre le service de signalisation et le service d'appels
+            correspondants (list[list[str, int]]): liste des correspondants de l'appel (IP, port de réception côté serveur)
+        """
         Thread.__init__(self)
         
         # Déclaration des attributs
@@ -414,6 +499,8 @@ class Appel(Thread):
         # self.transferer_la_voix()
         
     def run(self) -> None:
+        """Méthode de transfert en boucle des paquets de voix entre les deux correspondants.
+        """
         # Déclaration des attributs
         data:bytes              # paquet de données audio
         nb_echantillons: int    # nombre d'échantillons audio
@@ -446,14 +533,25 @@ class Appel(Thread):
             self.__socket_reception_appele1.close()
             
     def terminer_appel(self) -> None:
-        self.__socket_reception_appelant.close()
-        self.__socket_reception_appele1.close()
+        """Terminer un appel en cours.
+        Déclenche l'event de fin de la boucle de transfert de la voix et la fin du thread.
+        """
         self.__stop_thread_event.set()
             
     def get_ip_clients(self)-> list[str]:
+        """Retourne les IP des clients de l'appel.
+
+        Returns:
+            list[str]: liste des adresses IP des clients de l'appel
+        """
         return [self.__ip_appelant, self.__ip_appele1]
     
     def get_ports_receptions_individuels(self)-> list[int]:
+        """Retourne la liste des ports serveur dédiés à la réception des flux audio des clients de l'appel.
+
+        Returns:
+            list[int]: liste des ports serveur dédidés à la réception des flux audio des clients de l'appel
+        """
         return [self.__port_reception_appelant, self.__port_reception_appele1]
         
     
